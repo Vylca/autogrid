@@ -1,0 +1,341 @@
+@import './digits.css';
+
+/* Printed grids. Sizes in mm and pt so the PDF matches the paper. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #111;
+  font-family: 'AG Digits', 'Atkinson Hyperlegible Next Variable', 'Noto Sans', 'DejaVu Sans', sans-serif;
+  font-size: 8.6pt;
+  line-height: 1.28;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.sheet {
+  break-after: page;
+}
+
+.sheet:last-child {
+  break-after: auto;
+}
+
+.block {
+  break-inside: avoid;
+}
+
+.cut {
+  position: relative;
+  height: 9mm;
+}
+
+.cut::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed #555;
+}
+
+.cut span {
+  position: absolute;
+  left: 2mm;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  padding: 0 1.5mm;
+  background: #fff;
+  color: #333;
+}
+
+/* Header */
+.g-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 6mm;
+  margin-bottom: 2mm;
+}
+
+.g-title {
+  font-size: 11pt;
+  font-weight: 800;
+}
+
+.g-meta {
+  display: flex;
+  gap: 4mm;
+  margin-top: 0.5mm;
+  font-size: 8.5pt;
+  color: #444;
+}
+
+.g-right {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+
+.who {
+  font-size: 11pt;
+  text-align: right;
+}
+
+.who.blank {
+  display: flex;
+  align-items: flex-end;
+  gap: 2mm;
+  font-size: 9pt;
+  color: #333;
+}
+
+.who .line {
+  display: inline-block;
+  width: 55mm;
+  border-bottom: 0.8px dotted #333;
+  height: 3.5mm;
+}
+
+.score {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2mm;
+  padding: 1.2mm 3mm;
+  border: 1.4px solid #111;
+  border-radius: 1.5mm;
+  white-space: nowrap;
+}
+
+.score .v {
+  font-size: 14pt;
+  font-weight: 800;
+}
+
+.score .v.blank {
+  display: inline-block;
+  width: 10mm;
+}
+
+.score .o {
+  font-size: 10pt;
+  color: #333;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th,
+td {
+  border: 0.75px solid #444;
+  padding: 1.2mm 1.6mm;
+  vertical-align: top;
+  text-align: left;
+}
+
+thead th {
+  background: #e9edf6;
+  font-size: 8.2pt;
+  font-weight: 800;
+}
+
+body.bw thead th {
+  background: #fff;
+}
+
+tr {
+  break-inside: avoid;
+}
+
+col.c-lvl {
+  width: 13mm;
+}
+
+col.c-acq {
+  width: 31mm;
+}
+
+col.c-pts {
+  width: 21mm;
+}
+
+td.lvl {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 12pt;
+  font-weight: 800;
+}
+
+td.lvl small {
+  display: block;
+  margin-top: 0.5mm;
+  font-size: 7pt;
+  font-weight: 500;
+  color: #444;
+}
+
+.cat-name {
+  font-weight: 800;
+}
+
+.desc {
+  color: #222;
+}
+
+.cat-comment {
+  margin-top: 0.8mm;
+  font-style: italic;
+  color: #333;
+}
+
+.cat-comment::before {
+  content: '› ';
+}
+
+/* Acquisition cell */
+td.acq {
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+  font-size: 7.6pt;
+}
+
+td.acq .acq-label {
+  display: block;
+}
+
+td.acq[style] {
+  background: var(--c);
+  color: var(--tc);
+}
+
+td.acq.special {
+  color: #333;
+  font-style: italic;
+}
+
+.meter {
+  display: inline-flex;
+  gap: 0.8mm;
+  margin-top: 0.8mm;
+}
+
+.meter i {
+  display: inline-block;
+  width: 2.2mm;
+  height: 2.2mm;
+  border-radius: 50%;
+  border: 0.6px solid currentColor;
+}
+
+.meter i.f {
+  background: currentColor;
+}
+
+body.bw td.acq[style] {
+  background: #fff;
+  color: #111;
+}
+
+td.pts,
+th.pts {
+  text-align: right;
+  white-space: nowrap;
+}
+
+td.pts {
+  vertical-align: middle;
+  font-weight: 700;
+}
+
+.pblank {
+  display: inline-block;
+  width: 6mm;
+}
+
+.comment {
+  margin-top: 2mm;
+  padding: 1.5mm 2mm;
+  border: 0.75px solid #444;
+  border-radius: 1mm;
+}
+
+.c-label {
+  font-weight: 800;
+}
+
+/* Paliers */
+table.pal th {
+  vertical-align: bottom;
+}
+
+th.grp {
+  text-align: center;
+  vertical-align: middle;
+}
+
+th.lvl-h {
+  vertical-align: middle;
+}
+
+.crit-name {
+  font-weight: 800;
+}
+
+.crit-max {
+  font-weight: 500;
+  font-size: 7.5pt;
+  color: #444;
+}
+
+.sp-mark {
+  margin-top: 0.5mm;
+  font-style: italic;
+  font-weight: 600;
+}
+
+td.mcell {
+  position: relative;
+  padding-bottom: 4.6mm;
+}
+
+.mpts {
+  position: absolute;
+  right: 1.6mm;
+  bottom: 1mm;
+  font-weight: 800;
+  font-size: 7.6pt;
+}
+
+td.mcell.sel {
+  background: #cfdaf8;
+  outline: 2px solid #2747b0;
+  outline-offset: -2px;
+}
+
+body.bw td.mcell.sel {
+  background: #e2e2e2;
+  outline: 2.2px solid #111;
+  outline-offset: -2.2px;
+}
+
+.chk {
+  position: absolute;
+  left: 1.2mm;
+  bottom: 1mm;
+  color: #2747b0;
+}
+
+body.bw .chk {
+  color: #111;
+}
+
+.crit-comments {
+  margin-top: 1.5mm;
+}

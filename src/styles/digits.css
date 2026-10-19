@@ -1,0 +1,10 @@
+/* Atkinson Hyperlegible draws a slashed zero. Digits come from Public Sans so
+   marks read "20", not a crossed zero, on screen and on printed grids. */
+@font-face {
+  font-family: 'AG Digits';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0030-0039;
+}

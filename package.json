@@ -1,0 +1,72 @@
+{
+  "name": "autogrid",
+  "productName": "AutoGrid",
+  "version": "0.1.0",
+  "description": "Grilles d'évaluation CECRL et correction rapide",
+  "author": "Vylca",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "test": "node --test tests/*.test.js",
+    "dist": "vite build && electron-builder --linux --publish never",
+    "selftest": "vite build && AUTOGRID_SELFTEST=$PWD/selftest-out AUTOGRID_USERDATA=$PWD/selftest-out/userdata electron --no-sandbox ."
+  },
+  "devDependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource-variable/public-sans": "^5.3.0",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
+    "vite": "^6.4.4",
+    "vue": "^3.5.44"
+  },
+  "build": {
+    "appId": "fr.vylca.autogrid",
+    "productName": "AutoGrid",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-web/**",
+      "electron/**",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "tar.gz"
+      ],
+      "category": "Education",
+      "executableName": "autogrid",
+      "artifactName": "AutoGrid-linux-x64.${ext}",
+      "icon": "build/icon.png",
+      "synopsis": "Grilles d'évaluation CECRL et correction rapide"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.education",
+      "artifactName": "AutoGrid-mac-${arch}.${ext}",
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "AutoGrid-windows-x64.${ext}",
+      "icon": "build/icon.png"
+    },
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ]
+  },
+  "desktopName": "autogrid.desktop"
+}
