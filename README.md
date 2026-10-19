@@ -25,4 +25,4 @@ npm test           # tests du calcul des notes et de l'import CSV
 npm run dist       # construire le paquet Linux dans release/
 ```
 
-Une nouvelle version est publiée en poussant un tag `vX.Y.Z` : GitHub construit le paquet Linux et le met en ligne.
+Pour publier une nouvelle version, changer `version` dans `package.json` et pousser sur `main` : GitHub construit le paquet Linux et le met en ligne.
