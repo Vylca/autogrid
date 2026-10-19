@@ -4,6 +4,7 @@ import { store, navigate } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { newGrid, duplicateGrid, PLACEMENT_PRESETS } from '../lib/model.js';
 import { formatNumber } from '../lib/scoring.js';
+import { scaleInfo } from '../lib/bareme.js';
 import { exportBlankGrid } from '../lib/exporter.js';
 import Icon from '../components/Icon.vue';
 import Modal from '../components/Modal.vue';
@@ -92,7 +93,8 @@ async function runExport() {
           <div class="meta">
             <span>{{ g.type === 'paliers' ? t('grids.typePaliers') : t('grids.typeCompetences') }}</span>
             <span>{{ t(g.type === 'paliers' ? 'grids.nCriteria' : 'grids.nCategories', { n: itemCount(g) }) }}</span>
-            <span>/ {{ formatNumber(g.maxScore, lang) }}</span>
+            <span>/ {{ formatNumber(scaleInfo(g).finalMax, lang) }}</span>
+            <span v-if="!scaleInfo(g).reachable && !scaleInfo(g).convert" class="tag warn">{{ t('grids.targetMissed', { target: formatNumber(g.target, lang) }) }}</span>
           </div>
           <div class="levels">
             <span v-for="(l, i) in levelsOf(g)" :key="i" class="tag level">{{ l }}</span>
@@ -155,6 +157,10 @@ async function runExport() {
 </template>
 
 <style scoped>
+.tag.warn {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 .levels {
   display: flex;
   flex-wrap: wrap;

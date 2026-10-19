@@ -1,15 +1,18 @@
 // Score computation for one student on one grid.
-import { cellPoints, criterionMax } from './weights.js';
+import { scaleInfo, categoryMax, criterionMax, categoryEarned, cellPoints } from './bareme.js';
+
+// Marks are always whole or half points.
+export const ROUND_STEP = 0.5;
 
 // Every gradable item of a grid, with its maximum points.
-// Competences grid: one item per category. Paliers grid: one item per criterion.
-export function gridItems(grid) {
+// Skills grid: one item per category. Level grid: one item per criterion.
+export function gridItems(grid, info = scaleInfo(grid)) {
   if (grid.type === 'paliers') {
-    return grid.criteria.map((c) => ({ id: c.id, max: criterionMax(grid, c.id), criterion: c }));
+    return grid.criteria.map((c) => ({ id: c.id, max: criterionMax(grid, c.id, info), criterion: c }));
   }
   const items = [];
   for (const row of grid.rows) {
-    for (const cat of row.categories) items.push({ id: cat.id, max: cat.points, row, category: cat });
+    for (const cat of row.categories) items.push({ id: cat.id, max: categoryMax(grid, cat, info), row, category: cat });
   }
   return items;
 }
@@ -21,24 +24,25 @@ export function roundTo(value, step) {
   return Math.round(r * 1000) / 1000;
 }
 
-// Points earned for one item, or null when the item is not counted.
-// Returns { earned, counted } where counted=false means excluded (A, D) or ungraded.
-export function itemScore(grid, item, mark) {
+// Points earned for one item.
+// counted=false means excluded (A, D) or not graded yet.
+export function itemScore(grid, item, mark, info = scaleInfo(grid)) {
   if (mark === undefined || mark === null || mark === '') return { earned: 0, counted: false, ungraded: true };
   if (mark === 'A' || mark === 'D') return { earned: 0, counted: false, excluded: true };
   if (mark === 'R') return { earned: 0, counted: true };
   if (grid.type === 'paliers') {
     if (!grid.levels.some((l) => l.id === mark)) return { earned: 0, counted: false, ungraded: true };
-    return { earned: cellPoints(grid, mark, item.id), counted: true };
+    return { earned: cellPoints(grid, mark, item.id, info), counted: true };
   }
-  const pct = Number(grid.scale?.[mark]);
-  if (!Number.isFinite(pct)) return { earned: 0, counted: false, ungraded: true };
-  return { earned: (item.max * pct) / 100, counted: true };
+  const earned = categoryEarned(grid, item.category, mark, info);
+  if (earned === null) return { earned: 0, counted: false, ungraded: true };
+  return { earned, counted: true };
 }
 
 // status: 'empty' (nothing graded), 'partial', 'complete', 'absent', 'exempt'
 export function scoreStudent(grid, result) {
-  const items = gridItems(grid);
+  const info = scaleInfo(grid);
+  const items = gridItems(grid, info);
   const marks = result?.marks || {};
   let earned = 0;
   let possible = 0;
@@ -48,7 +52,7 @@ export function scoreStudent(grid, result) {
   let exempt = 0;
   for (const item of items) {
     const mark = marks[item.id];
-    const s = itemScore(grid, item, mark);
+    const s = itemScore(grid, item, mark, info);
     if (s.ungraded) {
       ungraded++;
       continue;
@@ -69,13 +73,28 @@ export function scoreStudent(grid, result) {
     status = absent > 0 ? 'absent' : 'exempt';
   }
   let score = null;
+  let internalScore = null;
   if (possible > 1e-9) {
-    score = roundTo((earned / possible) * grid.maxScore, grid.rounding);
+    // Exact when nothing is excluded. Exclusions and conversions are rounded once, to the half point.
+    score = roundTo((earned / possible) * info.finalMax, ROUND_STEP);
+    internalScore = roundTo((earned / possible) * info.internalMax, ROUND_STEP);
   } else if (graded > 0 && absent + exempt < graded) {
-    // Only "non rendu" marks with zero-point items.
     score = 0;
+    internalScore = 0;
   }
-  return { score, earned, possible, graded, ungraded, total: items.length, status };
+  return {
+    score,
+    internalScore,
+    max: info.finalMax,
+    internalMax: info.internalMax,
+    converted: info.convert,
+    earned,
+    possible,
+    graded,
+    ungraded,
+    total: items.length,
+    status,
+  };
 }
 
 export function classAverage(grid, results, studentIds) {

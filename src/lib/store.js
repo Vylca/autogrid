@@ -1,5 +1,6 @@
 import { reactive, watch } from 'vue';
-import { emptyData, DATA_VERSION, DEFAULT_SCALE } from './model.js';
+import { emptyData, DATA_VERSION } from './model.js';
+import { migrateGrid } from './migrate.js';
 
 export const store = reactive({
   ready: false,
@@ -16,16 +17,7 @@ function migrate(d) {
   data.grids = Array.isArray(d.grids) ? d.grids : [];
   data.classes = Array.isArray(d.classes) ? d.classes : [];
   data.exams = Array.isArray(d.exams) ? d.exams : [];
-  const fixGrid = (g) => {
-    g.scale = { ...DEFAULT_SCALE, ...(g.scale || {}) };
-    g.rows = g.rows || [];
-    g.levels = g.levels || [];
-    g.criteria = g.criteria || [];
-    g.cells = g.cells || {};
-    if (g.rounding === undefined) g.rounding = 0.5;
-    if (g.maxScore === undefined) g.maxScore = 20;
-    if (g.categoryComments === undefined) g.categoryComments = false;
-  };
+  const fixGrid = migrateGrid;
   data.grids.forEach(fixGrid);
   for (const e of data.exams) {
     if (e.grid) fixGrid(e.grid);

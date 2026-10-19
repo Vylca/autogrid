@@ -1,7 +1,7 @@
 // Builds the HTML of one printable grid block. The print window paginates the blocks.
 import { ACQ_LEVELS, SPECIAL_MARKS, acqLevel } from './model.js';
 import { gridItems, scoreStudent, itemScore, formatNumber } from './scoring.js';
-import { cellPoints, criterionMax } from './weights.js';
+import { scaleInfo, cellPoints, criterionMax, rowMax } from './bareme.js';
 import { tFor, formatDateFor } from './i18n.js';
 
 function esc(s) {
@@ -32,12 +32,12 @@ function specialLabel(lang, code) {
   return sp ? tFor(lang, `acq.${sp.key}`) : '';
 }
 
-function header({ exam, grid, student, score, lang, blank, className }) {
+function header({ exam, grid, student, score, lang, blank, className, info }) {
   const title = exam ? exam.name : grid.name;
   const metaParts = [];
   if (className) metaParts.push(`<span>${esc(className)}</span>`);
   if (exam?.date) metaParts.push(`<span>${esc(formatDateFor(lang, exam.date))}</span>`);
-  const maxTxt = formatNumber(grid.maxScore, lang);
+  const maxTxt = formatNumber(info.finalMax, lang);
   let who;
   let scoreHtml;
   if (blank || !student) {
@@ -62,10 +62,10 @@ function header({ exam, grid, student, score, lang, blank, className }) {
   </div>`;
 }
 
-function competencesTable({ grid, result, lang, blank }) {
+function competencesTable({ grid, result, lang, blank, info }) {
   const marks = result?.marks || {};
   const comments = result?.comments || {};
-  const items = gridItems(grid);
+  const items = gridItems(grid, info);
   const byId = Object.fromEntries(items.map((it) => [it.id, it]));
   let rows = '';
   for (const row of grid.rows) {
@@ -73,7 +73,7 @@ function competencesTable({ grid, result, lang, blank }) {
     cats.forEach((cat, i) => {
       let tr = '<tr>';
       if (i === 0) {
-        tr += `<td class="lvl" rowspan="${cats.length}">${esc(row.level)}<small>${esc(formatNumber(row.points, lang))} pts</small></td>`;
+        tr += `<td class="lvl" rowspan="${cats.length}">${esc(row.level)}<small>${esc(formatNumber(rowMax(grid, row, info), lang))} pts</small></td>`;
       }
       if (!cat) {
         tr += '<td></td><td></td><td></td></tr>';
@@ -102,7 +102,7 @@ function competencesTable({ grid, result, lang, blank }) {
       let pts;
       if (blank || !mark) pts = `<span class="pblank"></span> / ${max}`;
       else {
-        const s = itemScore(grid, item, mark);
+        const s = itemScore(grid, item, mark, info);
         pts = s.excluded ? '<span class="excl">–</span>' : `${esc(formatNumber(s.earned, lang))} / ${max}`;
       }
       tr += `<td class="pts">${pts}</td></tr>`;
@@ -121,7 +121,7 @@ function competencesTable({ grid, result, lang, blank }) {
   </table>`;
 }
 
-function paliersTable({ grid, result, lang, blank }) {
+function paliersTable({ grid, result, lang, blank, info }) {
   const marks = result?.marks || {};
   const groups = [];
   for (const c of grid.criteria) {
@@ -134,7 +134,7 @@ function paliersTable({ grid, result, lang, blank }) {
   const critHead = (c) => {
     const mark = blank ? undefined : marks[c.id];
     const sp = mark && ['A', 'D', 'R'].includes(mark) ? `<div class="sp-mark">${esc(specialLabel(lang, mark))}</div>` : '';
-    return `<div class="crit-name">${esc(c.name || tFor(lang, 'common.untitled'))}</div><div class="crit-max">/ ${esc(formatNumber(criterionMax(grid, c.id), lang))}</div>${sp}`;
+    return `<div class="crit-name">${esc(c.name || tFor(lang, 'common.untitled'))}</div><div class="crit-max">/ ${esc(formatNumber(criterionMax(grid, c.id, info), lang))}</div>${sp}`;
   };
   let thead = '';
   if (hasGroups) {
@@ -155,7 +155,7 @@ function paliersTable({ grid, result, lang, blank }) {
     for (const c of grid.criteria) {
       const selected = !blank && marks[c.id] === lvl.id;
       const desc = grid.cells?.[lvl.id]?.[c.id]?.descriptor || '';
-      tbody += `<td class="mcell${selected ? ' sel' : ''}">${selected ? CHECK_SVG : ''}<div class="desc">${nl2br(desc)}</div><div class="mpts">${esc(formatNumber(cellPoints(grid, lvl.id, c.id), lang))} pts</div></td>`;
+      tbody += `<td class="mcell${selected ? ' sel' : ''}">${selected ? CHECK_SVG : ''}<div class="desc">${nl2br(desc)}</div><div class="mpts">${esc(formatNumber(cellPoints(grid, lvl.id, c.id, info), lang))} pts</div></td>`;
     }
     tbody += '</tr>';
   }
@@ -175,10 +175,18 @@ function paliersTable({ grid, result, lang, blank }) {
 
 // Returns the HTML for one block (one student, or a blank grid).
 export function renderGridBlock({ exam = null, grid, student = null, result = null, lang = 'fr', blank = false, className = '' }) {
+  const info = scaleInfo(grid);
   const score = student && !blank ? scoreStudent(grid, result) : null;
   let html = `<div class="g">`;
-  html += header({ exam, grid, student, score, lang, blank, className });
-  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank }) : competencesTable({ grid, result, lang, blank });
+  html += header({ exam, grid, student, score, lang, blank, className, info });
+  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank, info }) : competencesTable({ grid, result, lang, blank, info });
+  if (info.convert) {
+    const line =
+      score && score.internalScore !== null
+        ? tFor(lang, 'print.converted', { score: formatNumber(score.internalScore, lang), max: formatNumber(info.internalMax, lang), target: formatNumber(info.target, lang) })
+        : tFor(lang, 'print.convertedBlank', { max: formatNumber(info.internalMax, lang), target: formatNumber(info.target, lang) });
+    html += `<div class="conv-line">${esc(line)}</div>`;
+  }
   if (!blank && result?.comment) {
     html += `<div class="comment"><span class="c-label">${esc(tFor(lang, 'print.comment'))}</span> ${nl2br(result.comment)}</div>`;
   }

@@ -6,7 +6,7 @@ import { CECRL_LEVELS } from '../lib/model.js';
 import Modal from './Modal.vue';
 import Icon from './Icon.vue';
 
-const props = defineProps({ level: String });
+const props = defineProps({ level: String, compact: Boolean });
 const emit = defineEmits(['insert']);
 
 const open = ref(false);
@@ -25,7 +25,8 @@ function insert() {
 </script>
 
 <template>
-  <button class="btn small ghost" type="button" :title="t('desc.button')" @click="show"><Icon name="book" :size="16" /> CECRL</button>
+  <button v-if="props.compact" class="icon-btn" type="button" :title="t('desc.button')" @click="show"><Icon name="book" :size="16" /></button>
+  <button v-else class="btn small ghost" type="button" :title="t('desc.button')" @click="show"><Icon name="book" :size="16" /> CECRL</button>
   <Modal v-if="open" :title="t('desc.title')" @close="open = false">
     <div class="field">
       <span>{{ t('desc.activity') }}</span>

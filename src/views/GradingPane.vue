@@ -4,7 +4,7 @@ import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { sortStudents, emptyResult, SPECIAL_MARKS } from '../lib/model.js';
 import { gridItems, scoreStudent, itemScore, classAverage, formatNumber } from '../lib/scoring.js';
-import { cellPoints, criterionMax } from '../lib/weights.js';
+import { cellPoints, criterionMax, rowMax, scaleInfo } from '../lib/bareme.js';
 import Icon from '../components/Icon.vue';
 import AcqPicker from '../components/AcqPicker.vue';
 
@@ -12,7 +12,8 @@ const props = defineProps({ exam: Object, cls: Object });
 
 const grid = computed(() => props.exam.grid);
 const students = computed(() => sortStudents(props.cls.students));
-const items = computed(() => gridItems(grid.value));
+const info = computed(() => scaleInfo(grid.value));
+const items = computed(() => gridItems(grid.value, info.value));
 const itemIndex = computed(() => Object.fromEntries(items.value.map((it, i) => [it.id, i])));
 
 const currentId = ref(store.route.studentId && students.value.some((s) => s.id === store.route.studentId) ? store.route.studentId : students.value[0]?.id);
@@ -167,7 +168,7 @@ function scoreText(s) {
 }
 
 function itemPoints(item) {
-  const s = itemScore(grid.value, item, marks.value[item.id]);
+  const s = itemScore(grid.value, item, marks.value[item.id], info.value);
   if (s.ungraded) return `– / ${formatNumber(item.max, lang.value)}`;
   if (s.excluded) return t('grading.excluded');
   return `${formatNumber(s.earned, lang.value)} / ${formatNumber(item.max, lang.value)}`;
@@ -225,7 +226,7 @@ const studentComment = computed({
       </div>
       <div class="roster-foot">
         <span>{{ t('grading.average') }}</span>
-        <strong v-if="average !== null">{{ formatNumber(average, lang, 2) }} / {{ formatNumber(grid.maxScore, lang) }}</strong>
+        <strong v-if="average !== null">{{ formatNumber(average, lang, 2) }} / {{ formatNumber(info.finalMax, lang) }}</strong>
         <span v-else class="hint">–</span>
       </div>
     </aside>
@@ -244,8 +245,11 @@ const studentComment = computed({
         </div>
         <div class="score-box" :class="currentScore?.status">
           <span class="big">{{ scoreText(currentScore) || '–' }}</span>
-          <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(grid.maxScore, lang) }}</span>
+          <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.finalMax, lang) }}</span>
           <span class="state">{{ t('status.' + (currentScore?.status || 'empty')) }}</span>
+          <span v-if="info.convert && currentScore?.internalScore !== null" class="state conv">
+            {{ t('grading.converted', { score: formatNumber(currentScore.internalScore, lang), max: formatNumber(info.internalMax, lang) }) }}
+          </span>
         </div>
       </header>
 
@@ -254,7 +258,7 @@ const studentComment = computed({
         <div v-for="row in grid.rows" :key="row.id" class="row-group">
           <div class="lvl-cell">
             <span class="lvl">{{ row.level }}</span>
-            <span class="hint">{{ formatNumber(row.points, lang) }} pts</span>
+            <span class="hint">{{ formatNumber(rowMax(grid, row, info), lang) }} pts</span>
           </div>
           <div class="cats">
             <div
@@ -314,7 +318,7 @@ const studentComment = computed({
                 >
                   <div class="crit-title">{{ grid.criteria.find((c) => c.id === g.first).name || t('common.untitled') }}</div>
                   <div class="crit-sub">
-                    <span class="hint">/ {{ formatNumber(criterionMax(grid, g.first), lang) }}</span>
+                    <span class="hint">/ {{ formatNumber(criterionMax(grid, g.first, info), lang) }}</span>
                     <span class="specials">
                       <button v-for="s in SPECIAL_MARKS" :key="s.code" class="sp" :class="{ on: marks[g.first] === s.code }" :title="t('acq.' + s.key)" @click.stop="setMark(g.first, s.code, true)">{{ s.code }}</button>
                     </span>
@@ -334,7 +338,7 @@ const studentComment = computed({
                 >
                   <div class="crit-title">{{ c.name || t('common.untitled') }}</div>
                   <div class="crit-sub">
-                    <span class="hint">/ {{ formatNumber(criterionMax(grid, c.id), lang) }}</span>
+                    <span class="hint">/ {{ formatNumber(criterionMax(grid, c.id, info), lang) }}</span>
                     <span class="specials">
                       <button v-for="s in SPECIAL_MARKS" :key="s.code" class="sp" :class="{ on: marks[c.id] === s.code }" :title="t('acq.' + s.key)" @click.stop="setMark(c.id, s.code, true)">{{ s.code }}</button>
                     </span>
@@ -357,7 +361,7 @@ const studentComment = computed({
                 @click="focusIndex = itemIndex[c.id]; setMark(c.id, lvl.id, true)"
               >
                 <p class="desc">{{ grid.cells?.[lvl.id]?.[c.id]?.descriptor }}</p>
-                <span class="mpts">{{ formatNumber(cellPoints(grid, lvl.id, c.id), lang) }} pts</span>
+                <span class="mpts">{{ formatNumber(cellPoints(grid, lvl.id, c.id, info), lang) }} pts</span>
               </td>
             </tr>
           </tbody>
@@ -519,6 +523,10 @@ const studentComment = computed({
 .score-box .out {
   font-size: 16px;
   color: var(--ink-2);
+}
+.score-box .conv {
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 .score-box .state {
   grid-column: 1 / -1;

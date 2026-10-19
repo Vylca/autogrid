@@ -26,11 +26,7 @@ export const SPECIAL_MARKS = [
   { code: 'R', key: 'notHandedIn' },
 ];
 
-export const DEFAULT_SCALE = { 6: 100, 5: 80, 4: 60, 3: 40, 2: 20, 1: 0 };
-
-export const ROUNDING_OPTIONS = [0.01, 0.1, 0.25, 0.5, 1];
-
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 export function uid() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -54,20 +50,16 @@ export function isSpecial(code) {
   return code === 'A' || code === 'D' || code === 'R';
 }
 
-function evenSplit(n, total) {
-  return n > 0 ? total / n : 0;
+export function newCategory(name = '', weight = 1) {
+  return { id: uid(), name, descriptor: '', weight };
 }
 
-export function newCategory(name = '', points = 0) {
-  return { id: uid(), name, descriptor: '', points, pinned: false };
+export function newRow(level) {
+  return { id: uid(), level, categories: [] };
 }
 
-export function newRow(level, points = 0) {
-  return { id: uid(), level, points, pinned: false, categories: [] };
-}
-
-export function newCriterion(name = '', points = 0) {
-  return { id: uid(), name, group: '', points, pinned: false };
+export function newCriterion(name = '', weight = 1) {
+  return { id: uid(), name, group: '', weight };
 }
 
 export function newLevel(level) {
@@ -81,9 +73,8 @@ export function newGrid({ name, type, presetId }) {
     id: uid(),
     name: name || '',
     type: type === 'paliers' ? 'paliers' : 'competences',
-    maxScore: 20,
-    rounding: 0.5,
-    scale: { ...DEFAULT_SCALE },
+    target: 20,
+    convert: false,
     categoryComments: false,
     rows: [],
     levels: [],
@@ -93,16 +84,15 @@ export function newGrid({ name, type, presetId }) {
     updatedAt: now,
   };
   if (grid.type === 'competences') {
-    const each = evenSplit(preset.levels.length, grid.maxScore);
     grid.rows = preset.levels.map((lvl) => {
-      const row = newRow(lvl, each);
-      row.categories = [newCategory('', each)];
+      const row = newRow(lvl);
+      row.categories = [newCategory('')];
       return row;
     });
   } else {
-    // Paliers grids read from the highest level down, like printed CECRL grids.
+    // Level grids read from the highest level down, like printed CECRL grids.
     grid.levels = [...preset.levels].reverse().map((lvl) => newLevel(lvl));
-    grid.criteria = [newCriterion('', grid.maxScore)];
+    grid.criteria = [newCriterion('')];
   }
   return grid;
 }

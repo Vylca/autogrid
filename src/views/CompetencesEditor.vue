@@ -1,21 +1,16 @@
 <script setup>
 import { ref } from 'vue';
-import { t } from '../lib/i18n.js';
+import { t, lang } from '../lib/i18n.js';
 import { CECRL_LEVELS, newRow, newCategory, uid, cloneDeep } from '../lib/model.js';
-import {
-  setRowPoints,
-  rebalanceRows,
-  setCategoryPoints,
-  syncCategories,
-  unpin,
-  rebalance,
-  resetEven,
-} from '../lib/weights.js';
-import WeightInput from '../components/WeightInput.vue';
+import { categoryMax, rowMax, weightOf } from '../lib/bareme.js';
+import { formatNumber } from '../lib/scoring.js';
+import WeightStepper from '../components/WeightStepper.vue';
 import DescriptorPicker from '../components/DescriptorPicker.vue';
 import Icon from '../components/Icon.vue';
 
-const props = defineProps({ grid: Object });
+const props = defineProps({ grid: Object, info: Object });
+
+const pts = (v) => t('common.points', { n: v, v: formatNumber(v, lang.value) });
 
 function nextLevel() {
   const last = props.grid.rows[props.grid.rows.length - 1];
@@ -28,7 +23,6 @@ function addRow() {
   const row = newRow(addLevel.value);
   row.categories.push(newCategory(''));
   props.grid.rows.push(row);
-  rebalanceRows(props.grid);
   addLevel.value = nextLevel();
 }
 
@@ -37,17 +31,14 @@ function removeRow(i) {
   const hasContent = row.categories.some((c) => c.name || c.descriptor);
   if (hasContent && !window.confirm(t('grid.confirmDeleteRow', { level: row.level }))) return;
   props.grid.rows.splice(i, 1);
-  rebalanceRows(props.grid);
   addLevel.value = nextLevel();
 }
 
 function duplicateRow(i) {
   const copy = cloneDeep(props.grid.rows[i]);
   copy.id = uid();
-  copy.pinned = false;
   for (const c of copy.categories) c.id = uid();
   props.grid.rows.splice(i + 1, 0, copy);
-  rebalanceRows(props.grid);
 }
 
 function moveRow(i, d) {
@@ -57,36 +48,16 @@ function moveRow(i, d) {
   [rows[i], rows[j]] = [rows[j], rows[i]];
 }
 
-function unpinRow(i) {
-  unpin(props.grid.rows, i, props.grid.maxScore);
-  props.grid.rows.forEach(syncCategories);
-}
-
-function evenRows() {
-  resetEven(props.grid.rows, props.grid.maxScore);
-  props.grid.rows.forEach(syncCategories);
-}
-
-function addCategory(row) {
-  row.categories.push(newCategory(''));
-  rebalance(row.categories, row.points);
-}
-
 function removeCategory(row, j) {
   const c = row.categories[j];
   if ((c.name || c.descriptor) && !window.confirm(t('grid.confirmDeleteCategory', { name: c.name || t('common.untitled') }))) return;
   row.categories.splice(j, 1);
-  rebalance(row.categories, row.points);
 }
 
 function moveCategory(row, j, d) {
   const k = j + d;
   if (k < 0 || k >= row.categories.length) return;
   [row.categories[j], row.categories[k]] = [row.categories[k], row.categories[j]];
-}
-
-function evenCategories(row) {
-  resetEven(row.categories, row.points);
 }
 
 function insertDescriptor(cat, text) {
@@ -101,7 +72,7 @@ function insertDescriptor(cat, text) {
         <select v-model="row.level" class="input lvl-select" :aria-label="t('grid.level')">
           <option v-for="l in CECRL_LEVELS" :key="l" :value="l">{{ l }}</option>
         </select>
-        <WeightInput :value="row.points" :pinned="row.pinned" @set="(v) => setRowPoints(props.grid, i, v)" @unpin="unpinRow(i)" />
+        <span class="row-total">{{ pts(rowMax(props.grid, row, props.info)) }}</span>
         <span class="spacer"></span>
         <div class="row-actions">
           <button class="icon-btn" :disabled="i === 0" :title="t('common.moveUp')" @click="moveRow(i, -1)"><Icon name="up" /></button>
@@ -117,7 +88,10 @@ function insertDescriptor(cat, text) {
           <textarea v-model="cat.descriptor" class="input" rows="2" :placeholder="t('grid.descriptor')"></textarea>
         </div>
         <div class="cat-ctrl">
-          <WeightInput :value="cat.points" :pinned="cat.pinned" :pinnable="row.categories.length > 1" @set="(v) => setCategoryPoints(row, j, v)" @unpin="unpin(row.categories, j, row.points)" />
+          <div class="weight-line">
+            <WeightStepper :value="weightOf(cat)" @set="(w) => (cat.weight = w)" />
+            <span class="cat-pts">{{ pts(categoryMax(props.grid, cat, props.info)) }}</span>
+          </div>
           <div class="row-actions">
             <DescriptorPicker :level="row.level" @insert="(txt) => insertDescriptor(cat, txt)" />
             <button class="icon-btn" :disabled="j === 0" :title="t('common.moveUp')" @click="moveCategory(row, j, -1)"><Icon name="up" :size="16" /></button>
@@ -129,8 +103,7 @@ function insertDescriptor(cat, text) {
       <p v-if="!row.categories.length" class="hint no-cat">{{ t('grid.noCategory') }}</p>
 
       <footer class="row-foot">
-        <button class="btn small" @click="addCategory(row)"><Icon name="plus" :size="16" /> {{ t('grid.addCategory') }}</button>
-        <button v-if="row.categories.length > 1" class="btn small ghost" @click="evenCategories(row)"><Icon name="reset" :size="15" /> {{ t('grid.evenSplit') }}</button>
+        <button class="btn small" @click="row.categories.push(newCategory(''))"><Icon name="plus" :size="16" /> {{ t('grid.addCategory') }}</button>
       </footer>
     </section>
 
@@ -139,8 +112,6 @@ function insertDescriptor(cat, text) {
         <option v-for="l in CECRL_LEVELS" :key="l" :value="l">{{ l }}</option>
       </select>
       <button class="btn" @click="addRow"><Icon name="plus" /> {{ t('grid.addRow') }}</button>
-      <span class="spacer"></span>
-      <button v-if="props.grid.rows.length > 1" class="btn ghost" @click="evenRows"><Icon name="reset" :size="16" /> {{ t('grid.evenSplitRows') }}</button>
     </div>
   </div>
 </template>
@@ -159,7 +130,7 @@ function insertDescriptor(cat, text) {
 .row-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   padding: 10px 12px;
   background: var(--accent-soft);
   border-bottom: 1px solid var(--rule);
@@ -168,6 +139,11 @@ function insertDescriptor(cat, text) {
   width: 84px;
   font-weight: 800;
   font-size: 16px;
+  color: var(--accent-ink);
+}
+.row-total {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--accent-ink);
 }
 .spacer {
@@ -193,6 +169,17 @@ function insertDescriptor(cat, text) {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+}
+.weight-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cat-pts {
+  min-width: 58px;
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 .no-cat {
   padding: 12px 16px;

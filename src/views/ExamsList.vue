@@ -4,6 +4,7 @@ import { store, navigate, findClass, findGrid } from '../lib/store.js';
 import { t, lang, formatDate } from '../lib/i18n.js';
 import { newExam } from '../lib/model.js';
 import { scoreStudent, classAverage, formatNumber } from '../lib/scoring.js';
+import { scaleInfo } from '../lib/bareme.js';
 import Icon from '../components/Icon.vue';
 import Modal from '../components/Modal.vue';
 
@@ -97,7 +98,7 @@ function create() {
         <div class="exam-avg">
           <template v-if="stats(exam).avg !== null">
             <strong>{{ formatNumber(stats(exam).avg, lang, 1) }}</strong>
-            <span class="hint out">/ {{ formatNumber(exam.grid.maxScore, lang) }}</span>
+            <span class="hint out">/ {{ formatNumber(scaleInfo(exam.grid).finalMax, lang) }}</span>
           </template>
         </div>
         <Icon name="right" class="chev" />

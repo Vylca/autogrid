@@ -3,20 +3,24 @@ import { ref } from 'vue';
 import { t, lang } from '../lib/i18n.js';
 import { CECRL_LEVELS, newLevel, newCriterion } from '../lib/model.js';
 import {
-  setCriterionPoints,
-  rebalanceCriteria,
-  unpin,
-  resetEven,
+  weightOf,
+  criterionMax,
   cellPoints,
   setCellPoints,
   resetCellPoints,
   ensureCell,
-} from '../lib/weights.js';
+  isTopLevel,
+  isCellPinned,
+} from '../lib/bareme.js';
+import { formatNumber } from '../lib/scoring.js';
+import WeightStepper from '../components/WeightStepper.vue';
 import WeightInput from '../components/WeightInput.vue';
 import DescriptorPicker from '../components/DescriptorPicker.vue';
 import Icon from '../components/Icon.vue';
 
-const props = defineProps({ grid: Object });
+const props = defineProps({ grid: Object, info: Object });
+
+const pts = (v) => t('common.points', { n: v, v: formatNumber(v, lang.value) });
 
 function suggestLevel() {
   const used = new Set(props.grid.levels.map((l) => l.level));
@@ -55,7 +59,6 @@ function moveLevel(i, d) {
 
 function addCriterion() {
   props.grid.criteria.push(newCriterion(''));
-  rebalanceCriteria(props.grid);
 }
 
 function removeCriterion(i) {
@@ -64,7 +67,6 @@ function removeCriterion(i) {
   if ((c.name || hasText) && !window.confirm(t('grid.confirmDeleteCriterion', { name: c.name || t('common.untitled') }))) return;
   props.grid.criteria.splice(i, 1);
   for (const row of Object.values(props.grid.cells)) delete row[c.id];
-  rebalanceCriteria(props.grid);
 }
 
 function moveCriterion(i, d) {
@@ -74,29 +76,17 @@ function moveCriterion(i, d) {
   [list[i], list[j]] = [list[j], list[i]];
 }
 
-function evenCriteria() {
-  resetEven(props.grid.criteria, props.grid.maxScore);
-}
-
-function cell(levelId, critId) {
-  return ensureCell(props.grid, levelId, critId);
-}
-
 function cellText(levelId, critId) {
   return props.grid.cells?.[levelId]?.[critId]?.descriptor || '';
 }
 
 function setCellText(levelId, critId, value) {
-  cell(levelId, critId).descriptor = value;
+  ensureCell(props.grid, levelId, critId).descriptor = value;
 }
 
 function insertDescriptor(levelId, critId, text) {
   const cur = cellText(levelId, critId);
   setCellText(levelId, critId, cur ? `${cur}\n${text}` : text);
-}
-
-function isPinned(levelId, critId) {
-  return !!props.grid.cells?.[levelId]?.[critId]?.pinned;
 }
 </script>
 
@@ -115,6 +105,7 @@ function isPinned(levelId, critId) {
             <select v-model="l.level" class="input lvl-select">
               <option v-for="x in CECRL_LEVELS" :key="x" :value="x">{{ x }}</option>
             </select>
+            <span class="lvl-steps">{{ t('grid.steps', { n: props.grid.levels.length - i }) }}</span>
             <div class="row-actions">
               <button class="icon-btn" :disabled="i === 0" :title="t('common.moveUp')" @click="moveLevel(i, -1)"><Icon name="up" :size="16" /></button>
               <button class="icon-btn" :disabled="i === props.grid.levels.length - 1" :title="t('common.moveDown')" @click="moveLevel(i, 1)"><Icon name="down" :size="16" /></button>
@@ -136,13 +127,13 @@ function isPinned(levelId, critId) {
             <h3>{{ t('grid.criteriaTitle') }}</h3>
             <p class="hint">{{ t('grid.criteriaHint') }}</p>
           </div>
-          <button v-if="props.grid.criteria.length > 1" class="btn small ghost" @click="evenCriteria"><Icon name="reset" :size="15" /> {{ t('grid.evenSplit') }}</button>
         </div>
         <div class="crit-list">
           <div v-for="(c, i) in props.grid.criteria" :key="c.id" class="crit-item">
             <input v-model="c.name" class="input crit-name" :placeholder="t('grid.criterionName')" />
             <input v-model="c.group" class="input crit-group" :placeholder="t('grid.group')" :title="t('grid.groupHint')" />
-            <WeightInput :value="c.points" :pinned="c.pinned" :pinnable="props.grid.criteria.length > 1" @set="(v) => setCriterionPoints(props.grid, i, v)" @unpin="unpin(props.grid.criteria, i, props.grid.maxScore)" />
+            <WeightStepper :value="weightOf(c)" @set="(w) => (c.weight = w)" />
+            <span class="crit-pts">{{ pts(criterionMax(props.grid, c.id, props.info)) }}</span>
             <div class="row-actions">
               <button class="icon-btn" :disabled="i === 0" :title="t('common.moveUp')" @click="moveCriterion(i, -1)"><Icon name="up" :size="16" /></button>
               <button class="icon-btn" :disabled="i === props.grid.criteria.length - 1" :title="t('common.moveDown')" @click="moveCriterion(i, 1)"><Icon name="down" :size="16" /></button>
@@ -187,10 +178,14 @@ function isPinned(levelId, critId) {
                   @input="setCellText(l.id, c.id, $event.target.value)"
                 ></textarea>
                 <div class="cell-foot">
-                  <DescriptorPicker :level="l.level" @insert="(txt) => insertDescriptor(l.id, c.id, txt)" />
+                  <DescriptorPicker compact :level="l.level" @insert="(txt) => insertDescriptor(l.id, c.id, txt)" />
+                  <span v-if="isTopLevel(props.grid, l.id)" class="top-pts" :title="t('grid.topLocked')">
+                    <Icon name="lock" :size="13" /> {{ pts(cellPoints(props.grid, l.id, c.id, props.info)) }}
+                  </span>
                   <WeightInput
-                    :value="cellPoints(props.grid, l.id, c.id)"
-                    :pinned="isPinned(l.id, c.id)"
+                    v-else
+                    :value="cellPoints(props.grid, l.id, c.id, props.info)"
+                    :pinned="isCellPinned(props.grid, l.id, c.id)"
                     @set="(v) => setCellPoints(props.grid, l.id, c.id, v)"
                     @unpin="resetCellPoints(props.grid, l.id, c.id)"
                   />
@@ -210,7 +205,7 @@ function isPinned(levelId, critId) {
 }
 .two {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -226,8 +221,12 @@ function isPinned(levelId, critId) {
 .lvl-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+}
+.lvl-steps {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink-2);
 }
 .lvl-select {
   width: 84px;
@@ -236,12 +235,17 @@ function isPinned(levelId, critId) {
 }
 .crit-item {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto 58px auto;
   gap: 8px;
   align-items: center;
 }
 .crit-name {
   font-weight: 700;
+}
+.crit-pts {
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 .add-inline {
   display: flex;
@@ -293,9 +297,23 @@ function isPinned(levelId, critId) {
 }
 .cell-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
   margin-top: 6px;
+}
+.cell-foot :deep(.weight input) {
+  width: 38px;
+}
+.top-pts {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
 }
 </style>

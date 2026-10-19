@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import { store, navigate } from './lib/store.js';
 import { t, lang } from './lib/i18n.js';
 import { ACQ_LEVELS } from './lib/model.js';
@@ -26,6 +26,11 @@ const section = computed(
   () => ({ exams: 'exams', exam: 'exams', grids: 'grids', grid: 'grids', classes: 'classes', class: 'classes' })[store.route.name],
 );
 const strip = [...ACQ_LEVELS].reverse();
+const mainEl = ref(null);
+watch(
+  () => [store.route.name, store.route.id],
+  () => nextTick(() => mainEl.value && (mainEl.value.scrollTop = 0)),
+);
 
 function setLang(l) {
   store.data.settings.lang = l;
@@ -66,7 +71,7 @@ onMounted(async () => {
         </div>
       </div>
     </aside>
-    <main class="main">
+    <main ref="mainEl" class="main">
       <div v-if="store.loadError" class="banner danger">{{ t('app.loadError') }}</div>
       <component :is="view" :key="store.route.name + (store.route.id || '')" />
     </main>
