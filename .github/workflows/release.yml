@@ -79,6 +79,12 @@ jobs:
           ls -la selftest/out
           test "$(ls selftest/out/*.pdf | wc -l)" -ge 6
           test -f selftest/out/01-exams.png
+      - name: Show screenshots in the log
+        run: |
+          for f in 02-grading-competences 04-grid-competences; do
+            sips -s format jpeg -s formatOptions 60 -Z 1000 "selftest/out/$f.png" --out "selftest/$f.jpg" >/dev/null
+            echo "BEGIN-SHOT $f"; base64 -i "selftest/$f.jpg" | tr -d '\n'; echo; echo "END-SHOT $f"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

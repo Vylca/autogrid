@@ -168,8 +168,24 @@ col.c-pts {
 td.lvl {
   text-align: center;
   vertical-align: middle;
-  font-size: 12pt;
+  font-size: 10.5pt;
   font-weight: 800;
+}
+
+tr.cat-row td {
+  background: #e9edf6;
+  font-weight: 800;
+  font-size: 9pt;
+  vertical-align: middle;
+}
+
+body.bw tr.cat-row td {
+  background: #f0f0f0;
+}
+
+tr.cat-comment-row td {
+  padding-top: 0.8mm;
+  padding-bottom: 0.8mm;
 }
 
 td.lvl small {
@@ -182,6 +198,10 @@ td.lvl small {
 
 .cat-name {
   font-weight: 800;
+}
+
+table.comp td.txt {
+  vertical-align: middle;
 }
 
 .desc {

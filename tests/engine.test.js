@@ -1,194 +1,232 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newGrid, newCategory, newCriterion } from '../src/lib/model.js';
-import { scaleInfo, categoryMax, rowMax, cellPoints, criterionMax, setCellPoints, resetCellPoints, snapHalf } from '../src/lib/bareme.js';
+import { newGrid, newCategory, newRow, newCriterion, newExam, emptyResult } from '../src/lib/model.js';
+import { splitHalf, colorPoints, levelPoints, scaleInfo, cellPoints, setCellPoints, resetCellPoints, snapHalf } from '../src/lib/bareme.js';
 import { scoreStudent, roundTo, gridItems } from '../src/lib/scoring.js';
-import { integerWeights, migrateGrid } from '../src/lib/migrate.js';
+import { integerWeights, migrateGrid, migrateExam } from '../src/lib/migrate.js';
 import { decodeBytes, extractStudents, splitFullName } from '../src/lib/csv.js';
 
 const isHalf = (v) => Math.abs(v * 2 - Math.round(v * 2)) < 1e-9;
+const sum = (a) => a.reduce((x, y) => x + y, 0);
 
-function skillsGrid(weights, target = 20) {
-  const g = newGrid({ name: 't', type: 'competences', presetId: 'empty' });
+function skills(categories, { target = 20, rowImportance = false } = {}) {
+  const g = newGrid({ name: 't', type: 'competences', presetId: 'empty', categoryNames: categories.map((c) => c.name || 'x') });
   g.target = target;
-  g.rows = [{ id: 'r1', level: 'A2', categories: weights.map((w, i) => ({ ...newCategory(`c${i}`, w), id: `c${i}` })) }];
+  g.rowImportance = rowImportance;
+  g.categories = categories.map((c, i) => ({
+    ...newCategory(c.name || ''),
+    id: `c${i}`,
+    importance: c.imp || 0,
+    rows: (c.rows || [0]).map((imp, j) => ({ ...newRow('A2'), id: `c${i}r${j}`, importance: imp })),
+  }));
   return g;
 }
 
-test('4 categories of weight 1 on 20: one step is one point', () => {
-  const g = newGrid({ name: 't', type: 'competences', presetId: '3e' });
+test('parts: normal is 4, each +1 adds a quarter', () => {
+  assert.deepEqual(splitHalf(20, [4, 4, 4, 4]), [5, 5, 5, 5]);
+  assert.deepEqual(splitHalf(20, [5, 4, 4, 4]), [6, 5, 4.5, 4.5]);
+  assert.deepEqual(splitHalf(20, [6, 4, 4, 4]), [6.5, 4.5, 4.5, 4.5]);
+  assert.deepEqual(splitHalf(20, [8, 4, 4, 4]), [8, 4, 4, 4]);
+  assert.deepEqual(splitHalf(20, [4, 4, 4]), [7, 6.5, 6.5]);
+  assert.deepEqual(splitHalf(20, [6, 4, 4, 3, 3]), [6, 4, 4, 3, 3]);
+});
+
+test('split always lands exactly on the target, in half points', () => {
+  for (const target of [10, 15, 17.5, 20, 23, 40]) {
+    for (const parts of [[4], [4, 4, 4], [5, 4, 4, 4, 3, 7], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [12, 1]]) {
+      const r = splitHalf(target, parts);
+      assert.equal(sum(r), target);
+      r.forEach((v) => assert.ok(isHalf(v)));
+    }
+  }
+});
+
+test('color points are fifths of the row, rounded to the half point', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((c) => colorPoints(5, String(c))), [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((c) => colorPoints(6, String(c))), [0, 1, 2.5, 3.5, 5, 6]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((c) => colorPoints(2, String(c))), [0, 0.5, 1, 1, 1.5, 2]);
+  assert.equal(colorPoints(5, 'A'), null);
+});
+
+test('level points: lowest is 1 step, highest is the whole criterion', () => {
+  assert.deepEqual([1, 2, 3, 4].map((k) => levelPoints(4, k, 4)), [1, 2, 3, 4]);
+  assert.deepEqual([1, 2, 3, 4].map((k) => levelPoints(6, k, 4)), [1.5, 3, 4.5, 6]);
+  assert.deepEqual([1, 2, 3, 4].map((k) => levelPoints(3, k, 4)), [1, 1.5, 2.5, 3]);
+});
+
+test('categories: Grammaire +1 with 3 rows, Lexique and Prononciation with 2', () => {
+  const g = skills([{ name: 'Grammaire', imp: 1, rows: [0, 0, 0] }, { name: 'Lexique', rows: [0, 0] }, { name: 'Prononciation', rows: [0, 0] }]);
   const info = scaleInfo(g);
-  assert.equal(info.reachable, true);
-  assert.equal(info.finalMax, 20);
-  assert.equal(info.unit, 1);
-  g.rows.forEach((r) => assert.equal(rowMax(g, r, info), 5));
+  assert.deepEqual(g.categories.map((c) => info.catMax[c.id]), [8, 6, 6]);
+  assert.deepEqual(g.categories.flatMap((c) => c.rows.map((r) => info.rowMax[r.id])), [3, 2.5, 2.5, 3, 3, 3, 3]);
+  assert.equal(info.total, 20);
+  const top = Object.fromEntries(gridItems(g).map((it) => [it.id, '6']));
+  assert.equal(scoreStudent(g, { marks: top }).score, 20);
+});
+
+test('grid without categories: rows share the mark equally', () => {
+  const g = newGrid({ name: 't', type: 'competences', presetId: '3e' });
+  assert.equal(g.useCategories, false);
+  assert.equal(g.categories.length, 1);
+  const info = scaleInfo(g);
+  assert.deepEqual(g.categories[0].rows.map((r) => info.rowMax[r.id]), [5, 5, 5, 5]);
   const ids = gridItems(g).map((it) => it.id);
-  // 6 -> 5 steps, 5 -> 4, 3 -> 2, 1 -> 0
   const r = scoreStudent(g, { marks: { [ids[0]]: '6', [ids[1]]: '5', [ids[2]]: '3', [ids[3]]: '1' } });
   assert.equal(r.score, 11);
   assert.equal(r.status, 'complete');
 });
 
-test('same grid on 10 and 40 gives half and double steps', () => {
-  for (const [target, unit] of [[10, 0.5], [40, 2]]) {
-    const g = skillsGrid([1, 1, 1, 1], target);
-    const info = scaleInfo(g);
-    assert.equal(info.reachable, true);
-    assert.equal(info.unit, unit);
-  }
+test('row importance is only used when the advanced option is on', () => {
+  const off = skills([{ name: 'A', rows: [2, 0, 0, 0] }]);
+  const on = skills([{ name: 'A', rows: [2, 0, 0, 0] }], { rowImportance: true });
+  assert.deepEqual(off.categories[0].rows.map((r) => scaleInfo(off).rowMax[r.id]), [5, 5, 5, 5]);
+  assert.deepEqual(on.categories[0].rows.map((r) => scaleInfo(on).rowMax[r.id]), [6.5, 4.5, 4.5, 4.5]);
 });
 
-test('3 categories cannot be on 20: nearest valid max and weight sums', () => {
-  const g = skillsGrid([1, 1, 1]);
+test('empty categories get nothing and are flagged, the total stays on target', () => {
+  const g = skills([{ name: 'A', rows: [0, 0] }, { name: 'B', rows: [] }]);
   const info = scaleInfo(g);
-  assert.equal(info.reachable, false);
-  assert.equal(info.internalMax, 22.5);
-  assert.equal(info.finalMax, 22.5);
-  assert.deepEqual(info.sums, [4, 8]);
-  assert.ok(info.possible.includes(15) && info.possible.includes(22.5));
-  // Weights 2, 1, 1 make 20 reachable.
-  g.rows[0].categories[0].weight = 2;
-  const ok = scaleInfo(g);
-  assert.equal(ok.reachable, true);
-  assert.deepEqual(g.rows[0].categories.map((c) => categoryMax(g, c, ok)), [10, 5, 5]);
+  assert.equal(info.total, 20);
+  assert.deepEqual(info.warnings.map((w) => w.type), ['emptyCategory']);
 });
 
-test('9 categories can never be on 20', () => {
-  const info = scaleInfo(skillsGrid(Array(9).fill(1)));
-  assert.equal(info.reachable, false);
-  assert.equal(info.sumsImpossible, true);
-  assert.equal(info.internalMax, 22.5);
+test('rows under 2.5 points are flagged', () => {
+  const g = skills([{ name: 'A', rows: Array(10).fill(0) }]);
+  const info = scaleInfo(g);
+  assert.equal(info.warnings[0].type, 'merged');
+  assert.equal(info.warnings[0].ids.length, 10);
+  assert.equal(scaleInfo(skills([{ name: 'A', rows: Array(8).fill(0) }])).warnings.length, 0);
 });
 
-test('common factor in weights is ignored', () => {
-  const a = scaleInfo(skillsGrid([2, 2, 2]));
-  assert.equal(a.reachable, false);
-  assert.equal(a.internalMax, 22.5);
-  const b = scaleInfo(skillsGrid([2, 2, 2, 2]));
-  assert.equal(b.reachable, true);
-});
-
-test('a target that is not a multiple of the steps is impossible', () => {
-  const info = scaleInfo(skillsGrid([1, 1], 17));
-  assert.equal(info.reachable, false);
-  assert.equal(info.targetImpossible, true);
-});
-
-test('every reachable possible value is a whole or half point', () => {
-  for (const weights of [[1], [2, 1, 1], [3, 1], [1, 1, 1, 1, 1, 1, 2], [5, 2, 1]]) {
-    for (const target of [10, 15, 20, 25, 30, 40]) {
-      const g = skillsGrid(weights, target);
-      const info = scaleInfo(g);
-      for (const cat of g.rows[0].categories) {
-        for (let code = 1; code <= 6; code++) {
-          const r = scoreStudent(g, { marks: { [cat.id]: String(code) } });
-          assert.ok(r.status === 'partial' || r.status === 'complete');
-          assert.ok(isHalf(categoryMax(g, cat, info) * (code - 1) / 5), `${weights} /${target}`);
-        }
-      }
-      if (info.reachable) {
-        const all = Object.fromEntries(g.rows[0].categories.map((c) => [c.id, '6']));
-        assert.equal(scoreStudent(g, { marks: all }).score, target);
-      }
+test('every mark of every grid is a whole or half point', () => {
+  for (const target of [10, 15, 20, 25]) {
+    const g = skills([{ name: 'A', imp: 2, rows: [0, 1, 0] }, { name: 'B', imp: -1, rows: [0, 0] }, { name: 'C', rows: [3] }], { target, rowImportance: true });
+    const items = gridItems(g);
+    for (let code = 1; code <= 6; code++) {
+      const marks = Object.fromEntries(items.map((it) => [it.id, String(code)]));
+      const r = scoreStudent(g, { marks });
+      assert.ok(isHalf(r.score));
+      if (code === 6) assert.equal(r.score, target);
     }
   }
 });
 
-test('convert to the target rounds the final mark to the half point', () => {
-  const g = skillsGrid([1, 1, 1]);
-  g.convert = true;
-  const info = scaleInfo(g);
-  assert.equal(info.internalMax, 22.5);
-  assert.equal(info.finalMax, 20);
-  // 5 + 4 steps + 0 steps, each step 1.5 pts: 13.5 / 22.5 -> 12 / 20
-  const r = scoreStudent(g, { marks: { c0: '6', c1: '5', c2: '1' } });
-  assert.equal(r.internalScore, 13.5);
-  assert.equal(r.score, 12);
-  // 7.5 + 6 + 3 = 16.5 / 22.5 -> 14.67 -> 14.5
-  assert.equal(scoreStudent(g, { marks: { c0: '6', c1: '5', c2: '3' } }).score, 14.5);
-});
-
 test('special marks', () => {
-  const g = skillsGrid([1, 1, 1, 1]);
-  const ids = ['c0', 'c1', 'c2', 'c3'];
+  const g = newGrid({ name: 't', type: 'competences', presetId: '3e' });
+  const ids = gridItems(g).map((it) => it.id);
   // Dispensé: 5 + 4 + 2 out of 15 -> 14.67 -> 14.5
-  let r = scoreStudent(g, { marks: { c0: '6', c1: '5', c2: '3', c3: 'D' } });
+  let r = scoreStudent(g, { marks: { [ids[0]]: '6', [ids[1]]: '5', [ids[2]]: '3', [ids[3]]: 'D' } });
   assert.equal(r.score, 14.5);
   r = scoreStudent(g, { marks: Object.fromEntries(ids.map((i) => [i, 'R'])) });
   assert.equal(r.score, 0);
   r = scoreStudent(g, { marks: Object.fromEntries(ids.map((i) => [i, 'A'])) });
   assert.equal(r.status, 'absent');
   assert.equal(r.score, null);
-  assert.equal(scoreStudent(g, { marks: { c0: '6' } }).status, 'partial');
+  assert.equal(scoreStudent(g, { marks: { [ids[0]]: '6' } }).status, 'partial');
   assert.equal(scoreStudent(g, { marks: {} }).status, 'empty');
 });
 
-test('level grid: steps from the lowest level, weights and manual cells', () => {
+test('level grid: Banksy with importance, manual cells only in advanced mode', () => {
   const g = newGrid({ name: 'Banksy', type: 'paliers', presetId: '3e' });
-  assert.deepEqual(g.levels.map((l) => l.level), ['B1', 'A2+', 'A2', 'A1+']);
-  g.criteria = [newCriterion('Réalisation', 3), newCriterion('Cohérence', 2), newCriterion('Grammaire', 2), newCriterion('Lexique', 2), newCriterion('Prononciation', 1)];
+  g.criteria = [newCriterion('Réalisation', 2), newCriterion('Cohérence'), newCriterion('Grammaire'), newCriterion('Lexique', -1), newCriterion('Prononciation', -1)];
   const info = scaleInfo(g);
-  assert.equal(info.reachable, true);
-  assert.equal(info.unit, 0.5);
+  assert.deepEqual(g.criteria.map((c) => info.critMax[c.id]), [6, 4, 4, 3, 3]);
   const [b1, a2p, a2, a1p] = g.levels.map((l) => l.id);
-  const [real, coh, , , pron] = g.criteria.map((c) => c.id);
+  const [real, coh] = g.criteria.map((c) => c.id);
   assert.deepEqual([b1, a2p, a2, a1p].map((l) => cellPoints(g, l, coh)), [4, 3, 2, 1]);
   assert.deepEqual([b1, a2p, a2, a1p].map((l) => cellPoints(g, l, real)), [6, 4.5, 3, 1.5]);
-  assert.deepEqual([b1, a2p, a2, a1p].map((l) => cellPoints(g, l, pron)), [2, 1.5, 1, 0.5]);
-  // Manual value snaps to the half point, the top level cannot be changed.
+  g.cellOverride = true;
   setCellPoints(g, a2p, real, 5.2);
   assert.equal(cellPoints(g, a2p, real), 5);
   setCellPoints(g, b1, real, 3);
   assert.equal(cellPoints(g, b1, real), 6);
-  setCellPoints(g, a1p, real, 99);
-  assert.equal(cellPoints(g, a1p, real), 6);
-  resetCellPoints(g, a1p, real);
-  assert.equal(cellPoints(g, a1p, real), 1.5);
+  g.cellOverride = false;
+  assert.equal(cellPoints(g, a2p, real), 4.5);
+  g.cellOverride = true;
+  resetCellPoints(g, a2p, real);
+  assert.equal(cellPoints(g, a2p, real), 4.5);
   const all = Object.fromEntries(g.criteria.map((c) => [c.id, b1]));
   assert.equal(scoreStudent(g, { marks: all }).score, 20);
-  assert.equal(scoreStudent(g, { marks: { ...all, [real]: a2p, [coh]: a2 } }).score, 17);
-  // Manual cells follow a weight change and stay on half points.
-  g.criteria[0].weight = 4;
-  const after = scaleInfo(g);
-  assert.ok(isHalf(cellPoints(g, a2p, real, after)));
-  assert.ok(isHalf(criterionMax(g, real, after)));
+  assert.equal(scoreStudent(g, { marks: { ...all, [real]: a2p, [coh]: a2 } }).score, 16.5);
 });
 
-test('migration from version 0.1 keeps proportions', () => {
-  assert.deepEqual(integerWeights([5, 5, 5, 5]), [1, 1, 1, 1]);
-  assert.deepEqual(integerWeights([8, 4, 4, 4]), [2, 1, 1, 1]);
-  assert.deepEqual(integerWeights([2, 2, 2.6667, 2.6667, 2.6667, 4, 4]), [3, 3, 4, 4, 4, 6, 6]);
-  const old = {
+// ---- Migration ------------------------------------------------------------------------
+
+function v2Skills() {
+  return {
     id: 'g',
     type: 'competences',
-    maxScore: 20,
-    rounding: 0.5,
-    scale: { 6: 100 },
+    target: 20,
+    convert: false,
+    categoryComments: true,
     rows: [
-      { id: 'r', level: 'A2', points: 12, pinned: true, categories: [{ id: 'a', points: 8, pinned: true }, { id: 'b', points: 4 }] },
-      { id: 's', level: 'B1', points: 8, categories: [{ id: 'c', points: 8 }] },
+      { id: 'r1', level: 'A1', categories: [{ id: 'a', name: 'Prononciation', descriptor: 'p1', weight: 1 }, { id: 'b', name: 'Lexique', descriptor: 'l1', weight: 1 }] },
+      { id: 'r2', level: 'A2', categories: [{ id: 'c', name: 'Grammaire', descriptor: 'g2', weight: 2 }, { id: 'd', name: 'lexique ', descriptor: 'l2', weight: 1 }] },
+      { id: 'r3', level: 'A2+', categories: [{ id: 'e', name: 'Grammaire', descriptor: 'g3', weight: 2 }, { id: 'f', name: 'Prononciation', descriptor: 'p3', weight: 1 }] },
     ],
+    levels: [],
+    criteria: [],
+    cells: {},
   };
-  migrateGrid(old);
-  assert.equal(old.target, 20);
-  assert.equal(old.maxScore, undefined);
-  assert.deepEqual(old.rows.flatMap((r) => r.categories.map((c) => c.weight)), [2, 1, 2]);
-  assert.equal(scaleInfo(old).reachable, false);
-  assert.equal(old.convert, true);
-  assert.equal(scaleInfo(old).finalMax, 20);
+}
+
+test('0.2 template: items sharing a name become one category', () => {
+  const g = migrateGrid(v2Skills());
+  assert.equal(g.model, 3);
+  assert.equal(g.useCategories, true);
+  assert.equal(g.legacy, undefined);
+  assert.deepEqual(g.categories.map((c) => c.name), ['Prononciation', 'Lexique', 'Grammaire']);
+  assert.deepEqual(g.categories.map((c) => c.rows.map((r) => r.level)), [['A1', 'A2+'], ['A1', 'A2'], ['A2', 'A2+']]);
+  assert.deepEqual(g.categories.map((c) => c.importance), [0, 0, 4]);
+  assert.equal(scaleInfo(g).total, 20);
+  assert.equal(g.rows, undefined);
+});
+
+test('0.2 graded assessment keeps its exact marks', () => {
+  const e = { grid: v2Skills(), results: {} };
+  const codes = ['6', '5', '4', '3', '2', '1', 'R', 'D'];
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+  for (let s = 0; s < 8; s++) {
+    e.results[`s${s}`] = { marks: Object.fromEntries(ids.map((id, i) => [id, codes[(s + i) % codes.length]])), comments: { b: 'revoir', d: 'mots' }, comment: '' };
+  }
+  // Marks computed by version 0.2 for these students.
+  const expected = [9.5, 6, 4, 5.5, 8.5, 10.5, 12.5, 12];
+  migrateExam(e);
+  assert.equal(e.grid.legacy, true);
+  Object.values(e.results).forEach((r, i) => assert.equal(scoreStudent(e.grid, r).score, expected[i], `student ${i}`));
+  const lex = e.grid.categories.find((c) => c.name === 'Lexique');
+  assert.equal(e.results.s0.comments[lex.id], 'revoir\nmots');
+});
+
+test('0.1 points convert to weights with the same proportions', () => {
+  assert.deepEqual(integerWeights([5, 5, 5, 5]), [1, 1, 1, 1]);
+  assert.deepEqual(integerWeights([8, 4, 4, 4]), [2, 1, 1, 1]);
+});
+
+test('0.1 level grid keeps its manual cells', () => {
   const pal = { id: 'p', type: 'paliers', maxScore: 20, levels: [{ id: 'l1', level: 'B1' }, { id: 'l2', level: 'A2' }], criteria: [{ id: 'x', points: 12 }, { id: 'y', points: 8 }], cells: { l1: { x: { ratio: 0.5, pinned: true } }, l2: { x: { ratio: 0.4, pinned: true } } } };
   migrateGrid(pal);
-  assert.deepEqual(pal.criteria.map((c) => c.weight), [3, 2]);
+  assert.deepEqual(pal.criteria.map((c) => c.importance), [2, 0]);
+  assert.equal(pal.cellOverride, true);
   assert.equal(pal.cells.l1.x.pinned, false);
+  assert.equal(scaleInfo(pal).critMax.x, 12);
   assert.equal(cellPoints(pal, 'l2', 'x'), 5);
+});
+
+test('exams copy the grid', () => {
+  const g = newGrid({ name: 't', type: 'competences', presetId: '5e', categoryNames: ['Grammaire', 'Lexique'] });
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.grid.categories[0].name = 'changed';
+  assert.equal(g.categories[0].name, 'Grammaire');
+  assert.equal(g.categories[0].rows.length, 4);
+  assert.deepEqual(emptyResult(), { marks: {}, comments: {}, comment: '' });
 });
 
 test('rounding helpers', () => {
   assert.equal(roundTo(14.24, 0.5), 14);
   assert.equal(roundTo(14.25, 0.5), 14.5);
   assert.equal(snapHalf(2.3), 2.5);
-  assert.equal(snapHalf(2.2), 2);
 });
 
 test('name splitting', () => {

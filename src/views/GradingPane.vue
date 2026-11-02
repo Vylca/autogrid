@@ -4,7 +4,7 @@ import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { sortStudents, emptyResult, SPECIAL_MARKS } from '../lib/model.js';
 import { gridItems, scoreStudent, itemScore, classAverage, formatNumber } from '../lib/scoring.js';
-import { cellPoints, criterionMax, rowMax, scaleInfo } from '../lib/bareme.js';
+import { cellPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
 import Icon from '../components/Icon.vue';
 import AcqPicker from '../components/AcqPicker.vue';
 
@@ -179,6 +179,25 @@ function specialLabel(code) {
   return sp ? t(`acq.${sp.key}`) : '';
 }
 
+function categoryPoints(cat) {
+  let earned = 0;
+  let max = 0;
+  let any = false;
+  for (const row of cat.rows) {
+    const item = items.value[itemIndex.value[row.id]];
+    if (!item) continue;
+    const sc = itemScore(grid.value, item, marks.value[row.id], info.value);
+    if (sc.excluded) continue;
+    max += item.max;
+    if (!sc.ungraded) {
+      any = true;
+      earned += sc.earned;
+    }
+  }
+  const m = formatNumber(max, lang.value);
+  return any ? `${formatNumber(earned, lang.value)} / ${m}` : `– / ${m}`;
+}
+
 function toggleComment(id) {
   openComments.value[id] = !openComments.value[id];
 }
@@ -226,7 +245,7 @@ const studentComment = computed({
       </div>
       <div class="roster-foot">
         <span>{{ t('grading.average') }}</span>
-        <strong v-if="average !== null">{{ formatNumber(average, lang, 2) }} / {{ formatNumber(info.finalMax, lang) }}</strong>
+        <strong v-if="average !== null">{{ formatNumber(average, lang, 2) }} / {{ formatNumber(info.target, lang) }}</strong>
         <span v-else class="hint">–</span>
       </div>
     </aside>
@@ -245,59 +264,62 @@ const studentComment = computed({
         </div>
         <div class="score-box" :class="currentScore?.status">
           <span class="big">{{ scoreText(currentScore) || '–' }}</span>
-          <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.finalMax, lang) }}</span>
+          <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.target, lang) }}</span>
           <span class="state">{{ t('status.' + (currentScore?.status || 'empty')) }}</span>
-          <span v-if="info.convert && currentScore?.internalScore !== null" class="state conv">
-            {{ t('grading.converted', { score: formatNumber(currentScore.internalScore, lang), max: formatNumber(info.internalMax, lang) }) }}
+          <span v-if="currentScore?.converted && currentScore?.internalScore !== null" class="state conv">
+            {{ t('grading.converted', { score: formatNumber(currentScore.internalScore, lang), max: formatNumber(info.total, lang) }) }}
           </span>
         </div>
       </header>
 
-      <!-- Competences grid -->
+      <!-- Skills grid -->
       <div v-if="grid.type === 'competences'" class="comp">
-        <div v-for="row in grid.rows" :key="row.id" class="row-group">
-          <div class="lvl-cell">
-            <span class="lvl">{{ row.level }}</span>
-            <span class="hint">{{ formatNumber(rowMax(grid, row, info), lang) }} pts</span>
-          </div>
-          <div class="cats">
-            <div
-              v-for="cat in row.categories"
-              :key="cat.id"
-              class="cat"
-              :class="{ focused: itemIndex[cat.id] === focusIndex }"
-              :data-focused="itemIndex[cat.id] === focusIndex"
-              @click="focusIndex = itemIndex[cat.id]"
-            >
-              <div class="cat-text">
-                <strong v-if="cat.name">{{ cat.name }}</strong>
-                <p v-if="cat.descriptor" class="desc">{{ cat.descriptor }}</p>
-                <p v-if="!cat.name && !cat.descriptor" class="hint">{{ t('common.untitled') }}</p>
-              </div>
-              <AcqPicker :value="marks[cat.id]" @pick="(code) => { focusIndex = itemIndex[cat.id]; setMark(cat.id, code, true); }" />
-              <div class="cat-side">
-                <span class="cat-pts">{{ itemPoints(items[itemIndex[cat.id]]) }}</span>
-                <button
-                  v-if="grid.categoryComments"
-                  class="icon-btn"
-                  :class="{ has: result?.comments?.[cat.id] }"
-                  :title="t('grading.categoryComment')"
-                  @click.stop="toggleComment(cat.id)"
-                >
-                  <Icon name="comment" :size="16" />
-                </button>
-              </div>
-              <div v-if="grid.categoryComments && (openComments[cat.id] || result?.comments?.[cat.id])" class="cat-comment" @click.stop>
-                <input
-                  class="input"
-                  :placeholder="t('grading.categoryCommentPlaceholder')"
-                  :value="commentModel(cat.id).get()"
-                  @input="commentModel(cat.id).set($event.target.value)"
-                />
-              </div>
+        <section v-for="cat in grid.categories" :key="cat.id" class="cat-block">
+          <header v-if="grid.useCategories" class="cat-title">
+            <h3>{{ cat.name || t('common.untitled') }}</h3>
+            <span class="cat-total">{{ categoryPoints(cat) }}</span>
+          </header>
+          <div
+            v-for="row in cat.rows"
+            :key="row.id"
+            class="line"
+            :class="{ focused: itemIndex[row.id] === focusIndex }"
+            :data-focused="itemIndex[row.id] === focusIndex"
+            @click="focusIndex = itemIndex[row.id]"
+          >
+            <span class="lvl-badge">{{ row.level }}</span>
+            <p class="desc">{{ row.descriptor || t('grading.noDescriptor') }}</p>
+            <AcqPicker :value="marks[row.id]" @pick="(code) => { focusIndex = itemIndex[row.id]; setMark(row.id, code, true); }" />
+            <div class="line-side">
+              <span class="line-pts">{{ itemPoints(items[itemIndex[row.id]]) }}</span>
+              <button
+                v-if="grid.categoryComments && !grid.useCategories"
+                class="icon-btn"
+                :class="{ has: result?.comments?.[row.id] }"
+                :title="t('grading.rowComment')"
+                @click.stop="toggleComment(row.id)"
+              >
+                <Icon name="comment" :size="16" />
+              </button>
+            </div>
+            <div v-if="grid.categoryComments && !grid.useCategories && (openComments[row.id] || result?.comments?.[row.id])" class="line-comment" @click.stop>
+              <input
+                class="input"
+                :placeholder="t('grading.categoryCommentPlaceholder')"
+                :value="commentModel(row.id).get()"
+                @input="commentModel(row.id).set($event.target.value)"
+              />
             </div>
           </div>
-        </div>
+          <div v-if="grid.categoryComments && grid.useCategories" class="cat-comment">
+            <input
+              class="input"
+              :placeholder="t('grading.categoryCommentFor', { name: cat.name || t('common.untitled') })"
+              :value="commentModel(cat.id).get()"
+              @input="commentModel(cat.id).set($event.target.value)"
+            />
+          </div>
+        </section>
       </div>
 
       <!-- Paliers grid -->
@@ -538,63 +560,70 @@ const studentComment = computed({
   border-color: var(--rule-strong);
 }
 
-/* Competences */
-.row-group {
-  display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
+/* Skills grid */
+.cat-block {
+  margin-bottom: 12px;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   background: var(--surface);
-  margin-bottom: 10px;
   overflow: hidden;
 }
-.lvl-cell {
+.cat-title {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 10px 4px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
   background: var(--accent-soft);
-  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.cat-title h3 {
+  font-size: 16px;
+  color: var(--accent-ink);
+}
+.cat-total {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+}
+.line {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto 104px;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 14px 9px 10px;
+  border-left: 4px solid transparent;
+}
+.line + .line {
+  border-top: 1px solid var(--rule);
+}
+.line.focused {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 45%, white);
+}
+.lvl-badge {
+  justify-self: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--accent-ink);
 }
 .lvl {
   font-size: 20px;
   font-weight: 800;
   color: var(--accent-ink);
 }
-.cat {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 104px;
-  gap: 16px;
-  align-items: center;
-  padding: 10px 14px 10px 12px;
-  border-left: 4px solid transparent;
-  cursor: default;
-}
-.cat + .cat {
-  border-top: 1px solid var(--rule);
-}
-.cat.focused {
-  border-left-color: var(--accent);
-  background: color-mix(in srgb, var(--accent-soft) 45%, white);
-}
-.cat-text strong {
-  display: block;
-  font-size: 15px;
-}
 .desc {
-  font-size: 13.5px;
-  color: var(--ink-2);
+  font-size: 14px;
+  color: var(--ink);
   white-space: pre-line;
 }
-.cat-side {
+.line-side {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
 }
-.cat-pts {
+.line-pts {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -602,12 +631,18 @@ const studentComment = computed({
 .icon-btn.has {
   color: var(--accent);
 }
-.cat-comment {
-  grid-column: 1 / -1;
+.line-comment {
+  grid-column: 2 / -1;
 }
+.line-comment .input,
 .cat-comment .input {
   padding: 5px 9px;
   font-size: 14px;
+}
+.cat-comment {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
 }
 
 /* Paliers */

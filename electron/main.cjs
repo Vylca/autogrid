@@ -47,6 +47,13 @@ function writeData(json) {
 }
 
 ipcMain.handle('data:load', () => readData());
+ipcMain.handle('data:backup', (_e, tag) => {
+  const file = dataFile();
+  const safe = String(tag).replace(/[^a-z0-9]/gi, '');
+  const copy = path.join(path.dirname(file), `autogrid-data.${safe}.backup.json`);
+  if (fs.existsSync(file) && !fs.existsSync(copy)) fs.copyFileSync(file, copy);
+  return true;
+});
 ipcMain.handle('data:save', (_e, json) => {
   writeData(json);
   return true;

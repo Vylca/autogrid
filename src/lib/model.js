@@ -26,7 +26,10 @@ export const SPECIAL_MARKS = [
   { code: 'R', key: 'notHandedIn' },
 ];
 
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
+
+// Grid format. 3: categories with their own rows, importance in parts.
+export const GRID_MODEL = 3;
 
 export function uid() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -50,33 +53,42 @@ export function isSpecial(code) {
   return code === 'A' || code === 'D' || code === 'R';
 }
 
-export function newCategory(name = '', weight = 1) {
-  return { id: uid(), name, descriptor: '', weight };
+export function newCategory(name = '') {
+  return { id: uid(), name, importance: 0, rows: [] };
 }
 
-export function newRow(level) {
-  return { id: uid(), level, categories: [] };
+export function newRow(level, descriptor = '') {
+  return { id: uid(), level, descriptor, importance: 0 };
 }
 
-export function newCriterion(name = '', weight = 1) {
-  return { id: uid(), name, group: '', weight };
+export function newCriterion(name = '', importance = 0) {
+  return { id: uid(), name, group: '', importance };
 }
 
 export function newLevel(level) {
   return { id: uid(), level };
 }
 
-export function newGrid({ name, type, presetId }) {
-  const preset = PLACEMENT_PRESETS.find((p) => p.id === presetId) || PLACEMENT_PRESETS[3];
+export function presetLevels(presetId) {
+  return (PLACEMENT_PRESETS.find((p) => p.id === presetId) || PLACEMENT_PRESETS[3]).levels;
+}
+
+// categoryNames: null or [] for a grid without categories.
+export function newGrid({ name, type, presetId, categoryNames = null }) {
   const now = new Date().toISOString();
+  const levels = presetLevels(presetId);
   const grid = {
     id: uid(),
+    model: GRID_MODEL,
     name: name || '',
     type: type === 'paliers' ? 'paliers' : 'competences',
     target: 20,
-    convert: false,
+    presetId: presetId || 'empty',
+    useCategories: false,
+    rowImportance: false,
+    cellOverride: false,
     categoryComments: false,
-    rows: [],
+    categories: [],
     levels: [],
     criteria: [],
     cells: {},
@@ -84,14 +96,16 @@ export function newGrid({ name, type, presetId }) {
     updatedAt: now,
   };
   if (grid.type === 'competences') {
-    grid.rows = preset.levels.map((lvl) => {
-      const row = newRow(lvl);
-      row.categories = [newCategory('')];
-      return row;
+    const names = (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
+    grid.useCategories = names.length > 0;
+    grid.categories = (names.length ? names : ['']).map((n) => {
+      const cat = newCategory(n);
+      cat.rows = levels.map((lvl) => newRow(lvl));
+      return cat;
     });
   } else {
     // Level grids read from the highest level down, like printed CECRL grids.
-    grid.levels = [...preset.levels].reverse().map((lvl) => newLevel(lvl));
+    grid.levels = [...levels].reverse().map((lvl) => newLevel(lvl));
     grid.criteria = [newCriterion('')];
   }
   return grid;
@@ -110,9 +124,9 @@ export function duplicateGrid(grid, suffix) {
   g.createdAt = now;
   g.updatedAt = now;
   if (g.type === 'competences') {
-    for (const row of g.rows) {
-      row.id = uid();
-      for (const c of row.categories) c.id = uid();
+    for (const cat of g.categories) {
+      cat.id = uid();
+      for (const r of cat.rows) r.id = uid();
     }
   } else {
     const levelMap = {};

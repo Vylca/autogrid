@@ -98,7 +98,7 @@ function create() {
         <div class="exam-avg">
           <template v-if="stats(exam).avg !== null">
             <strong>{{ formatNumber(stats(exam).avg, lang, 1) }}</strong>
-            <span class="hint out">/ {{ formatNumber(scaleInfo(exam.grid).finalMax, lang) }}</span>
+            <span class="hint out">/ {{ formatNumber(scaleInfo(exam.grid).target, lang) }}</span>
           </template>
         </div>
         <Icon name="right" class="chev" />

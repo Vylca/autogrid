@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   loadData: () => ipcRenderer.invoke('data:load'),
   saveData: (json) => ipcRenderer.invoke('data:save', json),
+  backupData: (tag) => ipcRenderer.invoke('data:backup', tag),
   saveDataSync: (json) => ipcRenderer.sendSync('data:saveSync', json),
   appInfo: () => ipcRenderer.invoke('app:info'),
   openCsv: () => ipcRenderer.invoke('csv:open'),

@@ -1,6 +1,6 @@
 import { reactive, watch } from 'vue';
 import { emptyData, DATA_VERSION } from './model.js';
-import { migrateGrid } from './migrate.js';
+import { migrateGrid, migrateExam } from './migrate.js';
 
 export const store = reactive({
   ready: false,
@@ -17,12 +17,8 @@ function migrate(d) {
   data.grids = Array.isArray(d.grids) ? d.grids : [];
   data.classes = Array.isArray(d.classes) ? d.classes : [];
   data.exams = Array.isArray(d.exams) ? d.exams : [];
-  const fixGrid = migrateGrid;
-  data.grids.forEach(fixGrid);
-  for (const e of data.exams) {
-    if (e.grid) fixGrid(e.grid);
-    e.results = e.results || {};
-  }
+  data.grids.forEach((g) => migrateGrid(g));
+  data.exams.forEach(migrateExam);
   data.version = DATA_VERSION;
   return data;
 }
@@ -67,7 +63,11 @@ export async function initStore() {
   }
   if (raw) {
     try {
-      store.data = migrate(JSON.parse(raw));
+      const parsed = JSON.parse(raw);
+      const from = Number(parsed.version) || 1;
+      // Keep a copy of the file as written by the previous version before converting it.
+      if (from < DATA_VERSION) await window.api.backupData?.(`v${from}`);
+      store.data = migrate(parsed);
     } catch (err) {
       console.error('could not read data file', err);
       store.loadError = true;

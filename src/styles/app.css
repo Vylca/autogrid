@@ -368,8 +368,10 @@ textarea.input {
   accent-color: var(--accent);
 }
 
-.hint {
+.hint,
+.field > .hint {
   font-size: 13px;
+  font-weight: 400;
   color: var(--ink-3);
 }
 
@@ -400,6 +402,15 @@ textarea.input {
 
 .segmented button:last-child {
   border-right: 0;
+}
+
+.field > .segmented {
+  align-self: flex-start;
+}
+
+.segmented button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .segmented button.on {

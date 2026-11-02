@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { store, navigate } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
-import { newGrid, duplicateGrid, PLACEMENT_PRESETS } from '../lib/model.js';
+import { newGrid, duplicateGrid, PLACEMENT_PRESETS, CECRL_LEVELS } from '../lib/model.js';
 import { formatNumber } from '../lib/scoring.js';
 import { scaleInfo } from '../lib/bareme.js';
 import { exportBlankGrid } from '../lib/exporter.js';
@@ -13,10 +13,17 @@ import ExportOptions from '../components/ExportOptions.vue';
 const grids = computed(() => [...store.data.grids].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')));
 
 function levelsOf(g) {
-  return g.type === 'paliers' ? g.levels.map((l) => l.level) : g.rows.map((r) => r.level);
+  if (g.type === 'paliers') return g.levels.map((l) => l.level);
+  const all = g.categories.flatMap((c) => c.rows.map((r) => r.level));
+  return CECRL_LEVELS.filter((l) => all.includes(l));
 }
-function itemCount(g) {
-  return g.type === 'paliers' ? g.criteria.length : g.rows.reduce((n, r) => n + r.categories.length, 0);
+function counts(g) {
+  if (g.type === 'paliers') return [t('grids.nCriteria', { n: g.criteria.length })];
+  const rows = g.categories.reduce((n, c) => n + c.rows.length, 0);
+  const out = [];
+  if (g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
+  out.push(t('grids.nRows', { n: rows }));
+  return out;
 }
 function usedBy(g) {
   return store.data.exams.filter((e) => e.sourceGridId === g.id).length;
@@ -24,14 +31,22 @@ function usedBy(g) {
 
 // New grid
 const showNew = ref(false);
-const form = ref({ name: '', type: 'competences', presetId: '5e' });
+const form = ref({ name: '', type: 'competences', presetId: '5e', useCategories: false, categories: [], draft: '' });
 function openNew() {
-  form.value = { name: '', type: 'competences', presetId: '5e' };
+  form.value = { name: '', type: 'competences', presetId: '5e', useCategories: false, categories: [], draft: '' };
   showNew.value = true;
+}
+function addDraft() {
+  const parts = form.value.draft.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  for (const p of parts) if (!form.value.categories.includes(p)) form.value.categories.push(p);
+  form.value.draft = '';
 }
 function create() {
   if (!form.value.name.trim()) return;
-  const g = newGrid({ name: form.value.name.trim(), type: form.value.type, presetId: form.value.presetId });
+  addDraft();
+  const f = form.value;
+  const names = f.type === 'competences' && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
+  const g = newGrid({ name: f.name.trim(), type: f.type, presetId: f.presetId, categoryNames: names });
   store.data.grids.push(g);
   showNew.value = false;
   navigate('grid', g.id);
@@ -92,9 +107,9 @@ async function runExport() {
           <div class="title">{{ g.name || t('common.untitled') }}</div>
           <div class="meta">
             <span>{{ g.type === 'paliers' ? t('grids.typePaliers') : t('grids.typeCompetences') }}</span>
-            <span>{{ t(g.type === 'paliers' ? 'grids.nCriteria' : 'grids.nCategories', { n: itemCount(g) }) }}</span>
-            <span>/ {{ formatNumber(scaleInfo(g).finalMax, lang) }}</span>
-            <span v-if="!scaleInfo(g).reachable && !scaleInfo(g).convert" class="tag warn">{{ t('grids.targetMissed', { target: formatNumber(g.target, lang) }) }}</span>
+            <span v-for="c in counts(g)" :key="c">{{ c }}</span>
+            <span>/ {{ formatNumber(g.target, lang) }}</span>
+            <span v-if="scaleInfo(g).warnings.length" class="tag warn">{{ t('grids.hasWarnings') }}</span>
           </div>
           <div class="levels">
             <span v-for="(l, i) in levelsOf(g)" :key="i" class="tag level">{{ l }}</span>
@@ -132,6 +147,27 @@ async function runExport() {
           </label>
         </div>
       </div>
+      <div v-if="form.type === 'competences'" class="field">
+        <span>{{ t('grid.useCategories') }}</span>
+        <div class="segmented">
+          <button :class="{ on: !form.useCategories }" @click="form.useCategories = false">{{ t('common.no') }}</button>
+          <button :class="{ on: form.useCategories }" @click="form.useCategories = true">{{ t('common.yes') }}</button>
+        </div>
+        <span class="hint">{{ t('grids.categoriesHint') }}</span>
+      </div>
+      <div v-if="form.type === 'competences' && form.useCategories" class="field">
+        <span>{{ t('grids.categoryNames') }}</span>
+        <div class="chips">
+          <span v-for="(c, i) in form.categories" :key="c" class="chip">
+            {{ c }}
+            <button class="chip-x" :title="t('common.delete')" @click="form.categories.splice(i, 1)"><Icon name="x" :size="13" /></button>
+          </span>
+        </div>
+        <div class="draft">
+          <input v-model="form.draft" class="input" :placeholder="t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
+          <button class="btn small" :disabled="!form.draft.trim()" @click="addDraft"><Icon name="plus" :size="15" /> {{ t('grids.addCategoryName') }}</button>
+        </div>
+      </div>
       <label class="field">
         <span>{{ t('grids.preset') }}</span>
         <select v-model="form.presetId" class="input">
@@ -157,9 +193,44 @@ async function runExport() {
 </template>
 
 <style scoped>
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips:empty {
+  display: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 14px;
+}
+.chip-x {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.chip-x:hover {
+  background: rgba(39, 71, 176, 0.15);
+}
+.draft {
+  display: flex;
+  gap: 8px;
+}
 .tag.warn {
-  border-color: var(--danger);
-  color: var(--danger);
+  border-color: #c77700;
+  color: #a35f00;
 }
 .levels {
   display: flex;

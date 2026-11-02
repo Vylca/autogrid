@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import { t, lang } from '../lib/i18n.js';
 import { CECRL_LEVELS, newLevel, newCriterion } from '../lib/model.js';
 import {
-  weightOf,
   criterionMax,
   cellPoints,
   setCellPoints,
@@ -13,12 +12,12 @@ import {
   isCellPinned,
 } from '../lib/bareme.js';
 import { formatNumber } from '../lib/scoring.js';
-import WeightStepper from '../components/WeightStepper.vue';
+import ImportanceStepper from '../components/ImportanceStepper.vue';
 import WeightInput from '../components/WeightInput.vue';
 import DescriptorPicker from '../components/DescriptorPicker.vue';
 import Icon from '../components/Icon.vue';
 
-const props = defineProps({ grid: Object, info: Object });
+const props = defineProps({ grid: Object, info: Object, locked: Boolean });
 
 const pts = (v) => t('common.points', { n: v, v: formatNumber(v, lang.value) });
 
@@ -105,15 +104,15 @@ function insertDescriptor(levelId, critId, text) {
             <select v-model="l.level" class="input lvl-select">
               <option v-for="x in CECRL_LEVELS" :key="x" :value="x">{{ x }}</option>
             </select>
-            <span class="lvl-steps">{{ t('grid.steps', { n: props.grid.levels.length - i }) }}</span>
-            <div class="row-actions">
+            <span class="lvl-steps">{{ t('grid.levelShare', { n: props.grid.levels.length - i, total: props.grid.levels.length }) }}</span>
+            <div v-if="!props.locked" class="row-actions">
               <button class="icon-btn" :disabled="i === 0" :title="t('common.moveUp')" @click="moveLevel(i, -1)"><Icon name="up" :size="16" /></button>
               <button class="icon-btn" :disabled="i === props.grid.levels.length - 1" :title="t('common.moveDown')" @click="moveLevel(i, 1)"><Icon name="down" :size="16" /></button>
               <button class="icon-btn danger" :title="t('grid.deleteLevel')" @click="removeLevel(i)"><Icon name="trash" :size="16" /></button>
             </div>
           </div>
         </div>
-        <div class="add-inline">
+        <div v-if="!props.locked" class="add-inline">
           <select v-model="addLevelValue" class="input lvl-select">
             <option v-for="x in CECRL_LEVELS" :key="x" :value="x">{{ x }}</option>
           </select>
@@ -132,16 +131,19 @@ function insertDescriptor(levelId, critId, text) {
           <div v-for="(c, i) in props.grid.criteria" :key="c.id" class="crit-item">
             <input v-model="c.name" class="input crit-name" :placeholder="t('grid.criterionName')" />
             <input v-model="c.group" class="input crit-group" :placeholder="t('grid.group')" :title="t('grid.groupHint')" />
-            <WeightStepper :value="weightOf(c)" @set="(w) => (c.weight = w)" />
-            <span class="crit-pts">{{ pts(criterionMax(props.grid, c.id, props.info)) }}</span>
-            <div class="row-actions">
+            <ImportanceStepper v-model="c.importance" compact :disabled="props.locked" />
+            <span class="crit-pts">
+              <Icon v-if="props.info.flagged.has(c.id)" name="alert" :size="15" class="flag" />
+              {{ pts(criterionMax(props.grid, c.id, props.info)) }}
+            </span>
+            <div v-if="!props.locked" class="row-actions">
               <button class="icon-btn" :disabled="i === 0" :title="t('common.moveUp')" @click="moveCriterion(i, -1)"><Icon name="up" :size="16" /></button>
               <button class="icon-btn" :disabled="i === props.grid.criteria.length - 1" :title="t('common.moveDown')" @click="moveCriterion(i, 1)"><Icon name="down" :size="16" /></button>
               <button class="icon-btn danger" :title="t('grid.deleteCriterion')" @click="removeCriterion(i)"><Icon name="trash" :size="16" /></button>
             </div>
           </div>
         </div>
-        <div class="add-inline">
+        <div v-if="!props.locked" class="add-inline">
           <button class="btn small" @click="addCriterion"><Icon name="plus" :size="16" /> {{ t('grid.addCriterion') }}</button>
         </div>
       </section>
@@ -151,7 +153,7 @@ function insertDescriptor(levelId, critId, text) {
       <div class="panel-head">
         <div>
           <h3>{{ t('grid.cellsTitle') }}</h3>
-          <p class="hint">{{ t('grid.cellsHint') }}</p>
+          <p class="hint">{{ props.grid.cellOverride ? t('grid.cellsHintOverride') : t('grid.cellsHint') }}</p>
         </div>
       </div>
       <div v-if="!props.grid.levels.length || !props.grid.criteria.length" class="hint">{{ t('grid.cellsEmpty') }}</div>
@@ -179,8 +181,8 @@ function insertDescriptor(levelId, critId, text) {
                 ></textarea>
                 <div class="cell-foot">
                   <DescriptorPicker compact :level="l.level" @insert="(txt) => insertDescriptor(l.id, c.id, txt)" />
-                  <span v-if="isTopLevel(props.grid, l.id)" class="top-pts" :title="t('grid.topLocked')">
-                    <Icon name="lock" :size="13" /> {{ pts(cellPoints(props.grid, l.id, c.id, props.info)) }}
+                  <span v-if="isTopLevel(props.grid, l.id) || !props.grid.cellOverride" class="top-pts" :title="props.grid.cellOverride ? t('grid.topLocked') : ''">
+                    <Icon v-if="props.grid.cellOverride" name="lock" :size="13" /> {{ pts(cellPoints(props.grid, l.id, c.id, props.info)) }}
                   </span>
                   <WeightInput
                     v-else
@@ -235,7 +237,7 @@ function insertDescriptor(levelId, critId, text) {
 }
 .crit-item {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto 58px auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto 64px auto;
   gap: 8px;
   align-items: center;
 }
@@ -243,6 +245,10 @@ function insertDescriptor(levelId, critId, text) {
   font-weight: 700;
 }
 .crit-pts {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
   text-align: right;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -315,5 +321,8 @@ function insertDescriptor(levelId, critId, text) {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+}
+.flag {
+  color: #c77700;
 }
 </style>

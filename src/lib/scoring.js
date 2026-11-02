@@ -1,18 +1,18 @@
 // Score computation for one student on one grid.
-import { scaleInfo, categoryMax, criterionMax, categoryEarned, cellPoints } from './bareme.js';
+import { scaleInfo, criterionMax, colorPoints, cellPoints, categoriesOf } from './bareme.js';
 
 // Marks are always whole or half points.
 export const ROUND_STEP = 0.5;
 
 // Every gradable item of a grid, with its maximum points.
-// Skills grid: one item per category. Level grid: one item per criterion.
+// Skills grid: one item per row, in category order. Level grid: one item per criterion.
 export function gridItems(grid, info = scaleInfo(grid)) {
   if (grid.type === 'paliers') {
     return grid.criteria.map((c) => ({ id: c.id, max: criterionMax(grid, c.id, info), criterion: c }));
   }
   const items = [];
-  for (const row of grid.rows) {
-    for (const cat of row.categories) items.push({ id: cat.id, max: categoryMax(grid, cat, info), row, category: cat });
+  for (const cat of categoriesOf(grid)) {
+    for (const row of cat.rows) items.push({ id: row.id, max: info.rowMax[row.id] || 0, row, category: cat });
   }
   return items;
 }
@@ -34,7 +34,7 @@ export function itemScore(grid, item, mark, info = scaleInfo(grid)) {
     if (!grid.levels.some((l) => l.id === mark)) return { earned: 0, counted: false, ungraded: true };
     return { earned: cellPoints(grid, mark, item.id, info), counted: true };
   }
-  const earned = categoryEarned(grid, item.category, mark, info);
+  const earned = colorPoints(item.max, mark);
   if (earned === null) return { earned: 0, counted: false, ungraded: true };
   return { earned, counted: true };
 }
@@ -72,12 +72,14 @@ export function scoreStudent(grid, result) {
   if (graded > 0 && ungraded === 0 && absent + exempt === items.length) {
     status = absent > 0 ? 'absent' : 'exempt';
   }
+  // Exact when nothing is excluded. Exclusions (and grids whose rows do not add up
+  // to the target) are scaled to the target and rounded once, to the half point.
+  const converted = Math.abs(info.total - info.target) > 1e-9;
   let score = null;
   let internalScore = null;
   if (possible > 1e-9) {
-    // Exact when nothing is excluded. Exclusions and conversions are rounded once, to the half point.
-    score = roundTo((earned / possible) * info.finalMax, ROUND_STEP);
-    internalScore = roundTo((earned / possible) * info.internalMax, ROUND_STEP);
+    score = roundTo((earned / possible) * info.target, ROUND_STEP);
+    internalScore = roundTo((earned / possible) * info.total, ROUND_STEP);
   } else if (graded > 0 && absent + exempt < graded) {
     score = 0;
     internalScore = 0;
@@ -85,9 +87,9 @@ export function scoreStudent(grid, result) {
   return {
     score,
     internalScore,
-    max: info.finalMax,
-    internalMax: info.internalMax,
-    converted: info.convert,
+    max: info.target,
+    internalMax: info.total,
+    converted,
     earned,
     possible,
     graded,
