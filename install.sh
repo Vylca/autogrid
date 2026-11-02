@@ -5,6 +5,11 @@ set -euo pipefail
 
 REPO="Vylca/autogrid"
 
+# Temporary download folder, removed when the script ends.
+TMP_DIR=""
+cleanup() { [ -n "$TMP_DIR" ] && rm -rf "$TMP_DIR"; return 0; }
+trap cleanup EXIT
+
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
 fail() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -23,7 +28,7 @@ download() {
 }
 
 install_mac() {
-  local arch asset apps app version current tmp
+  local arch asset apps app version current
   case "$(uname -m)" in
     arm64) arch="arm64" ;;
     x86_64) arch="x64" ;;
@@ -52,8 +57,8 @@ install_mac() {
   fi
 
   say "Téléchargement d'AutoGrid $version ($arch)…"
-  tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
+  TMP_DIR=$(mktemp -d)
+  local tmp="$TMP_DIR"
   download "$version" "$asset" "$tmp/$asset"
   ditto -x -k "$tmp/$asset" "$tmp/x"
   [ -d "$tmp/x/AutoGrid.app" ] || fail "Archive inattendue."
@@ -74,7 +79,7 @@ install_mac() {
 
 install_linux() {
   local dest="$HOME/.local/share/autogrid" bin="$HOME/.local/bin" apps="$HOME/.local/share/applications"
-  local asset="AutoGrid-linux-x64.tar.gz" version current tmp sandbox_flag=""
+  local asset="AutoGrid-linux-x64.tar.gz" version current sandbox_flag=""
   command -v tar >/dev/null || fail "tar est nécessaire."
   [ "$(uname -m)" = "x86_64" ] || fail "Seuls les ordinateurs x86_64 sont pris en charge pour l'instant."
 
@@ -91,8 +96,8 @@ install_linux() {
   fi
 
   say "Téléchargement d'AutoGrid $version…"
-  tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
+  TMP_DIR=$(mktemp -d)
+  local tmp="$TMP_DIR"
   download "$version" "$asset" "$tmp/$asset"
   mkdir -p "$tmp/x"
   tar -xzf "$tmp/$asset" -C "$tmp/x" --strip-components=1
