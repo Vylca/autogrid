@@ -69,8 +69,13 @@ jobs:
       - name: Self test on macOS
         run: |
           mkdir -p selftest/out selftest/userdata
+          # macOS has no timeout command: start the app, then wait up to 3 minutes.
           AUTOGRID_SELFTEST="$PWD/selftest/out" AUTOGRID_USERDATA="$PWD/selftest/userdata" \
-            timeout 180 smoke/AutoGrid.app/Contents/MacOS/AutoGrid || true
+            smoke/AutoGrid.app/Contents/MacOS/AutoGrid > selftest/app.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 180); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          kill "$pid" 2>/dev/null || true
+          tail -20 selftest/app.log || true
           ls -la selftest/out
           test "$(ls selftest/out/*.pdf | wc -l)" -ge 6
           test -f selftest/out/01-exams.png
