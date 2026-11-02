@@ -214,6 +214,8 @@ ipcMain.handle('selftest:done', () => {
 
 function buildMenu() {
   const template = [
+    // On macOS the first menu is the application menu (About, Quit with Cmd+Q).
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
     { role: 'editMenu' },
     {
       label: 'Affichage',
