@@ -15,6 +15,7 @@ if (!store.data.settings.export) store.data.settings.export = { layout: 'perPage
 const options = store.data.settings.export;
 
 const group = computed(() => !!props.exam.grid.groupWork);
+const withRoles = computed(() => !!(props.exam.grid.groupWork && props.exam.grid.useRoles));
 const map = computed(() => roleMap(props.exam));
 const roleNames = computed(() => Object.fromEntries(rolesOf(props.exam.grid).map((r) => [r.id, r.name])));
 // Group work: only students placed in a group have a grid to print.
@@ -69,7 +70,7 @@ async function run() {
       <div class="pick-list">
         <label v-for="s in students" :key="s.id" class="checkbox pick-item">
           <input type="checkbox" :checked="selected.has(s.id)" @change="toggle(s.id)" />
-          <span class="pname"><strong>{{ s.lastName }}</strong> {{ s.firstName }}<span v-if="group" class="prole">{{ roleNames[map[s.id]?.roleId] }}</span></span>
+          <span class="pname"><strong>{{ s.lastName }}</strong> {{ s.firstName }}<span v-if="withRoles" class="prole">{{ roleNames[map[s.id]?.roleId] }}</span></span>
           <span class="pscore">{{ scoreLabel(s) }}</span>
         </label>
       </div>

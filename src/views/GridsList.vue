@@ -7,6 +7,7 @@ import { formatNumber } from '../lib/scoring.js';
 import { scaleInfo } from '../lib/bareme.js';
 import { exportBlankGrid } from '../lib/exporter.js';
 import Icon from '../components/Icon.vue';
+import CountStepper from '../components/CountStepper.vue';
 import Modal from '../components/Modal.vue';
 import ExportOptions from '../components/ExportOptions.vue';
 
@@ -21,7 +22,9 @@ function counts(g) {
   if (g.type === 'paliers') return [t('grids.nCriteria', { n: g.criteria.length })];
   const rows = g.categories.reduce((n, c) => n + c.rows.length, 0);
   const out = [];
-  if (g.groupWork) out.push(t('grids.nRoles', { n: g.categories.length }));
+  if (g.groupWork && g.useRoles) out.push(t('grids.nRoles', { n: g.categories.length }));
+  else if (g.groupWork) out.push(t('grids.groupOf', { n: g.groupSize || 2 }));
+  if (g.groupWork && !g.useRoles && g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
   else if (g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
   out.push(t('grids.nRows', { n: rows }));
   return out;
@@ -32,7 +35,7 @@ function usedBy(g) {
 
 // New grid
 const showNew = ref(false);
-const blankForm = () => ({ name: '', type: 'competences', presetId: '5e', groupWork: false, useCategories: false, categories: [], draft: '' });
+const blankForm = () => ({ name: '', type: 'competences', presetId: '5e', groupWork: false, useRoles: false, groupSize: 2, useCategories: false, categories: [], draft: '' });
 const form = ref(blankForm());
 function openNew() {
   form.value = blankForm();
@@ -48,9 +51,18 @@ function create() {
   addDraft();
   const f = form.value;
   const skills = f.type === 'competences';
-  const roles = skills && f.groupWork ? (f.categories.length ? f.categories : [t('grid.roleN', { n: 1 }), t('grid.roleN', { n: 2 })]) : null;
-  const names = skills && !f.groupWork && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
-  const g = newGrid({ name: f.name.trim(), type: f.type, presetId: f.presetId, categoryNames: names, roleNames: roles });
+  const withRoles = skills && f.groupWork && f.useRoles;
+  const roles = withRoles ? (f.categories.length ? f.categories : [t('grid.roleN', { n: 1 }), t('grid.roleN', { n: 2 })]) : null;
+  const names = skills && !withRoles && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
+  const g = newGrid({
+    name: f.name.trim(),
+    type: f.type,
+    presetId: f.presetId,
+    categoryNames: names,
+    roleNames: roles,
+    groupWork: skills && f.groupWork,
+    groupSize: f.groupSize,
+  });
   store.data.grids.push(g);
   showNew.value = false;
   navigate('grid', g.id);
@@ -159,7 +171,19 @@ async function runExport() {
         </div>
         <span class="hint">{{ t('grids.groupWorkHint') }}</span>
       </div>
-      <div v-if="form.type === 'competences' && !form.groupWork" class="field">
+      <div v-if="form.type === 'competences' && form.groupWork" class="field">
+        <span>{{ t('grid.withRoles') }}</span>
+        <div class="segmented">
+          <button :class="{ on: !form.useRoles }" @click="form.useRoles = false">{{ t('common.no') }}</button>
+          <button :class="{ on: form.useRoles }" @click="form.useRoles = true">{{ t('common.yes') }}</button>
+        </div>
+        <span class="hint">{{ form.useRoles ? t('grids.rolesHint') : t('grids.noRolesHint') }}</span>
+      </div>
+      <div v-if="form.type === 'competences' && form.groupWork && !form.useRoles" class="field">
+        <span>{{ t('grid.groupSize') }}</span>
+        <CountStepper v-model="form.groupSize" :min="2" :max="8" />
+      </div>
+      <div v-if="form.type === 'competences' && !(form.groupWork && form.useRoles)" class="field">
         <span>{{ t('grid.useCategories') }}</span>
         <div class="segmented">
           <button :class="{ on: !form.useCategories }" @click="form.useCategories = false">{{ t('common.no') }}</button>
@@ -167,8 +191,8 @@ async function runExport() {
         </div>
         <span class="hint">{{ t('grids.categoriesHint') }}</span>
       </div>
-      <div v-if="form.type === 'competences' && (form.useCategories || form.groupWork)" class="field">
-        <span>{{ form.groupWork ? t('grids.roleNames') : t('grids.categoryNames') }}</span>
+      <div v-if="form.type === 'competences' && (form.groupWork && form.useRoles ? true : form.useCategories)" class="field">
+        <span>{{ form.groupWork && form.useRoles ? t('grids.roleNames') : t('grids.categoryNames') }}</span>
         <div class="chips">
           <span v-for="(c, i) in form.categories" :key="c" class="chip">
             {{ c }}
@@ -176,7 +200,7 @@ async function runExport() {
           </span>
         </div>
         <div class="draft">
-          <input v-model="form.draft" class="input" :placeholder="form.groupWork ? t('grids.rolePlaceholder') : t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
+          <input v-model="form.draft" class="input" :placeholder="form.groupWork && form.useRoles ? t('grids.rolePlaceholder') : t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
           <button class="btn small" :disabled="!form.draft.trim()" @click="addDraft"><Icon name="plus" :size="15" /> {{ t('grids.addCategoryName') }}</button>
         </div>
       </div>

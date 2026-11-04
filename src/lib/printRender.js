@@ -1,7 +1,7 @@
 // Builds the HTML of one printable grid block. The print window paginates the blocks.
 import { ACQ_LEVELS, SPECIAL_MARKS, acqLevel } from './model.js';
 import { gridItems, scoreStudent, itemScore, formatNumber } from './scoring.js';
-import { scaleInfo, cellPoints, criterionMax } from './bareme.js';
+import { scaleInfo, cellPoints, criterionMax, usesRoles } from './bareme.js';
 import { tFor, formatDateFor } from './i18n.js';
 
 function esc(s) {
@@ -68,10 +68,10 @@ function competencesTable({ grid, result, lang, blank, info, roleId }) {
   const items = gridItems(grid, info);
   const byId = Object.fromEntries(items.map((it) => [it.id, it]));
   const withComments = !blank && grid.categoryComments;
-  const rowComments = grid.groupWork || !grid.useCategories;
+  const rowComments = usesRoles(grid) || !grid.useCategories;
   let rows = '';
   for (const cat of grid.categories) {
-    if (grid.groupWork && roleId && cat.id !== roleId) continue;
+    if (usesRoles(grid) && roleId && cat.id !== roleId) continue;
     if (grid.useCategories) {
       let earned = 0;
       let max = 0;

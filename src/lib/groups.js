@@ -1,10 +1,17 @@
 // Group work: roles live in the grid (its categories), groups live in the exam.
 // exam.groups = [{ id, slots: { [roleId]: [studentId | null, ...] } }]
 import { uid } from './model.js';
-import { scoreStudent } from './scoring.js';
+import { scoreStudent, noRoleScore } from './scoring.js';
+import { scaleInfo, usesRoles } from './bareme.js';
+
+// Group work without roles: every member has the same sheet. The group then
+// has a single kind of slot, repeated groupSize times.
+export const MEMBER_ROLE = 'member';
 
 export function rolesOf(grid) {
-  return grid.groupWork ? grid.categories || [] : [];
+  if (!grid.groupWork) return [];
+  if (grid.useRoles) return grid.categories || [];
+  return [{ id: MEMBER_ROLE, name: '', count: grid.groupSize || 2 }];
 }
 
 export function roleCount(role) {
@@ -57,8 +64,9 @@ export function studentRole(exam, studentId) {
 export function examScore(exam, studentId, map = null) {
   const result = exam.results?.[studentId];
   if (!exam.grid.groupWork) return scoreStudent(exam.grid, result);
-  const roleId = (map || roleMap(exam))[studentId]?.roleId;
-  return scoreStudent(exam.grid, result, roleId);
+  const placed = (map || roleMap(exam))[studentId];
+  if (!placed) return noRoleScore(scaleInfo(exam.grid));
+  return usesRoles(exam.grid) ? scoreStudent(exam.grid, result, placed.roleId) : scoreStudent(exam.grid, result);
 }
 
 export function examAverage(exam, studentIds) {

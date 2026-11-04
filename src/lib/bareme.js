@@ -73,6 +73,11 @@ export function levelPoints(max, k, n) {
   return Math.floor((2 * units * k + n) / (2 * n)) / 2;
 }
 
+// Group work with roles: each role (a category) is a separate sheet.
+export function usesRoles(grid) {
+  return !!(grid.groupWork && grid.useRoles);
+}
+
 export function categoriesOf(grid) {
   return grid.type === 'paliers' ? [] : grid.categories || [];
 }
@@ -121,7 +126,7 @@ export function scaleInfo(grid) {
       // Categories without rows get nothing, so the rows always add up to the target.
       const filled = cats.filter((c) => c.rows.length > 0);
       // Group work: each role is a separate grid, graded on the whole target.
-      const catPts = grid.groupWork ? filled.map(() => target) : splitHalf(target, filled.map(partsOf));
+      const catPts = usesRoles(grid) ? filled.map(() => target) : splitHalf(target, filled.map(partsOf));
       for (const cat of cats) info.catMax[cat.id] = 0;
       filled.forEach((cat, i) => {
         info.catMax[cat.id] = catPts[i];
@@ -138,14 +143,14 @@ export function scaleInfo(grid) {
         else if (m < DISTINCT_COLORS_MIN) merged.push(r.id);
       }
     }
-    info.total = grid.groupWork
+    info.total = usesRoles(grid)
       ? Math.max(0, ...cats.map((c) => info.catMax[c.id] || 0))
       : Object.values(info.rowMax).reduce((a, b) => a + b, 0);
   }
 
   if (zero.length) info.warnings.push({ type: 'zero', ids: zero });
   if (merged.length) info.warnings.push({ type: 'merged', ids: merged });
-  if (empty.length) info.warnings.push({ type: grid.groupWork ? 'emptyRole' : 'emptyCategory', ids: empty });
+  if (empty.length) info.warnings.push({ type: usesRoles(grid) ? 'emptyRole' : 'emptyCategory', ids: empty });
   info.flagged = new Set([...zero, ...merged]);
   return info;
 }

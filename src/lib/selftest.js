@@ -6,7 +6,7 @@ import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResu
 import { setCellPoints } from './bareme.js';
 import { exportExamPdf, exportBlankGrid } from './exporter.js';
 import { scoreStudent } from './scoring.js';
-import { fillRandomly, roleMap } from './groups.js';
+import { fillRandomly, roleMap, examScore as examScoreOf } from './groups.js';
 
 const FAKE = [
   ['ARNAUD', 'Lina'], ['BENALI', 'Yanis'], ['COSTA', 'Inès'], ['DIALLO', 'Moussa'], ['DUBOIS LAMBERT', 'Chloé'],
@@ -122,11 +122,24 @@ function seed() {
     eg.results[s.id] = r;
   });
 
-  store.data.grids.push(comp, plain, pal, gw);
-  store.data.exams.push(eg);
+  const duo = newGrid({ name: 'Dialogue en binôme', type: 'competences', presetId: '5e', groupWork: true, groupSize: 2, categoryNames: ['Interaction', 'Langue'] });
+  duo.categories[0].rows = [['A1', 'Pose et répond à des questions simples'], ['A2', 'Relance la conversation']].map(([l, d]) => newRow(l, d));
+  duo.categories[1].rows = [['A1', 'Prononciation compréhensible'], ['A2', 'Utilise le vocabulaire de la séquence']].map(([l, d]) => newRow(l, d));
+  const ed = newExam({ name: 'Shopping dialogue', date: '2026-11-04', classId: c5.id, grid: duo });
+  let seedD = 3;
+  fillRandomly(ed, c5.students.map((s) => s.id), () => ((seedD = (seedD * 16807) % 2147483647) / 2147483647));
+  const drows = ed.grid.categories.flatMap((c) => c.rows);
+  c5.students.slice(0, 4).forEach((s, si) => {
+    const r = emptyResult();
+    drows.forEach((row, ri) => (r.marks[row.id] = ['6', '4', '5', '3'][(si + ri) % 4]));
+    ed.results[s.id] = r;
+  });
+
+  store.data.grids.push(comp, plain, pal, gw, duo);
+  store.data.exams.push(eg, ed);
   store.data.classes.push(c3, c5);
   store.data.exams.push(e5, e3);
-  return { comp, plain, pal, gw, c3, c5, e5, e3, eg };
+  return { comp, plain, pal, gw, duo, c3, c5, e5, e3, eg, ed };
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -151,6 +164,8 @@ export async function runSelftest(info) {
     e5: byId(store.data.exams, raw.e5.id),
     e3: byId(store.data.exams, raw.e3.id),
     eg: byId(store.data.exams, raw.eg.id),
+    ed: byId(store.data.exams, raw.ed.id),
+    duo: byId(store.data.grids, raw.duo.id),
     gw: byId(store.data.grids, raw.gw.id),
   };
   navigate('exams');
@@ -185,6 +200,13 @@ export async function runSelftest(info) {
   d.eg.sheetsVisible = 2;
   navigate('grid', d.gw.id);
   await shot('12-grid-roles');
+  navigate('exam', d.ed.id, { tab: 'grading' });
+  await shot('13-group-noroles');
+  navigate('exam', d.ed.id, { tab: 'groups' });
+  await shot('13b-groups-noroles');
+  navigate('grid', d.duo.id);
+  await shot('13c-grid-noroles');
+  await window.api.selftestLog('duo', d.c5.students.map((s) => ({ name: s.firstName, ...examScoreOf(d.ed, s.id) })));
   navigate('grid', d.comp.id);
   await shot('04-grid-competences');
   document.querySelector('.cat-tab:nth-child(2)')?.click();
@@ -208,10 +230,13 @@ export async function runSelftest(info) {
   await shot('08-grids');
   document.querySelector('.page-head .btn.primary')?.click();
   await wait(200);
+  // Group work: yes, with roles: yes.
   document.querySelectorAll('.modal .segmented button')[1]?.click();
   await wait(100);
+  document.querySelectorAll('.modal .segmented button')[3]?.click();
+  await wait(100);
   const draft = document.querySelector('.modal .draft input');
-  for (const n of ['Grammaire', 'Lexique']) {
+  for (const n of ['Intervieweur', 'Monstre']) {
     draft.value = n;
     draft.dispatchEvent(new Event('input'));
     draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));

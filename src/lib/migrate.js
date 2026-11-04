@@ -209,9 +209,13 @@ function migrateV2toV3(g, legacy) {
 
 // legacy: keep the exact points of the old calculation (graded assessments).
 export function migrateGrid(g, { legacy = false } = {}) {
-  if (g.model === GRID_MODEL) return g;
-  if (g.target === undefined) migrateV1toV2(g);
-  migrateV2toV3(g, legacy);
+  if (g.model !== GRID_MODEL) {
+    if (g.target === undefined) migrateV1toV2(g);
+    migrateV2toV3(g, legacy);
+  }
+  // 0.4 only had group work with roles.
+  if (g.groupWork && g.useRoles === undefined) g.useRoles = true;
+  if (g.groupSize === undefined) g.groupSize = 2;
   return g;
 }
 

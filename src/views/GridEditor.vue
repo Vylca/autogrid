@@ -2,7 +2,8 @@
 import { computed } from 'vue';
 import { t, lang } from '../lib/i18n.js';
 import { ACQ_LEVELS, newCategory } from '../lib/model.js';
-import { scaleInfo, snapHalf } from '../lib/bareme.js';
+import { scaleInfo, snapHalf, usesRoles } from '../lib/bareme.js';
+import CountStepper from '../components/CountStepper.vue';
 import { formatNumber } from '../lib/scoring.js';
 import WeightInput from '../components/WeightInput.vue';
 import ColorValues from '../components/ColorValues.vue';
@@ -43,19 +44,28 @@ function setCategories(on) {
   g.useCategories = false;
 }
 
+const roles = computed(() => usesRoles(props.grid));
+
 function setGroupWork(on) {
   const g = props.grid;
   if (on === !!g.groupWork) return;
+  g.groupWork = on;
+  if (!g.groupSize) g.groupSize = 2;
+  if (!on) g.useRoles = false;
+}
+
+// With roles, each category becomes a role with its own sheet.
+function setRoles(on) {
+  const g = props.grid;
+  if (on === !!g.useRoles) return;
+  g.useRoles = on;
   if (on) {
-    g.groupWork = true;
     g.useCategories = true;
     g.categories.forEach((c, i) => {
       if (!c.name) c.name = t('grid.roleN', { n: i + 1 });
       if (!c.count) c.count = 1;
     });
-    return;
   }
-  g.groupWork = false;
 }
 
 function warningText(w) {
@@ -93,7 +103,7 @@ function leaveLegacy() {
           <WeightInput :value="props.grid.target" :pinnable="false" unit="" @set="setTarget" />
         </div>
         <div class="field">
-          <span>{{ props.grid.groupWork ? t('grid.totalPerRole') : t('grid.total') }}</span>
+          <span>{{ roles ? t('grid.totalPerRole') : t('grid.total') }}</span>
           <strong class="total" :class="{ warn: info.total !== info.target }">{{ fmt(info.total) }} / {{ fmt(info.target) }}</strong>
         </div>
         <div v-if="!isPal" class="field">
@@ -103,7 +113,18 @@ function leaveLegacy() {
             <button :class="{ on: props.grid.groupWork }" :disabled="locked" @click="setGroupWork(true)">{{ t('common.yes') }}</button>
           </div>
         </div>
-        <div v-if="!isPal && !props.grid.groupWork" class="field">
+        <div v-if="!isPal && props.grid.groupWork" class="field">
+          <span>{{ t('grid.withRoles') }}</span>
+          <div class="segmented">
+            <button :class="{ on: !props.grid.useRoles }" :disabled="locked" @click="setRoles(false)">{{ t('common.no') }}</button>
+            <button :class="{ on: props.grid.useRoles }" :disabled="locked" @click="setRoles(true)">{{ t('common.yes') }}</button>
+          </div>
+        </div>
+        <div v-if="!isPal && props.grid.groupWork && !props.grid.useRoles" class="field">
+          <span>{{ t('grid.groupSize') }}</span>
+          <CountStepper v-model="props.grid.groupSize" :min="2" :max="8" />
+        </div>
+        <div v-if="!isPal && !roles" class="field">
           <span>{{ t('grid.useCategories') }}</span>
           <div class="segmented">
             <button :class="{ on: !props.grid.useCategories }" :disabled="locked" @click="setCategories(false)">{{ t('common.no') }}</button>
@@ -129,7 +150,7 @@ function leaveLegacy() {
           </label>
           <label class="checkbox">
             <input v-model="props.grid.categoryComments" type="checkbox" />
-            <span>{{ isPal ? t('grid.criterionComments') : props.grid.groupWork ? t('grid.rowComments') : props.grid.useCategories ? t('grid.categoryComments') : t('grid.rowComments') }}</span>
+            <span>{{ isPal ? t('grid.criterionComments') : roles || props.grid.groupWork ? t('grid.rowComments') : props.grid.useCategories ? t('grid.categoryComments') : t('grid.rowComments') }}</span>
           </label>
         </div>
       </details>

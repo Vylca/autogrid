@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick } from 'vue';
 import { t, lang } from '../lib/i18n.js';
 import { CECRL_LEVELS, newRow, newCategory, presetLevels } from '../lib/model.js';
+import { usesRoles } from '../lib/bareme.js';
 import { formatNumber } from '../lib/scoring.js';
 import ImportanceStepper from '../components/ImportanceStepper.vue';
 import CountStepper from '../components/CountStepper.vue';
@@ -38,7 +39,7 @@ watch(
 
 const nameInput = ref(null);
 
-const roles = computed(() => !!props.grid.groupWork);
+const roles = computed(() => usesRoles(props.grid));
 
 function addCategory() {
   const cat = newCategory(t(roles.value ? 'grid.roleN' : 'grid.categoryN', { n: cats.value.length + 1 }));

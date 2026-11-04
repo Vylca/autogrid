@@ -14,7 +14,9 @@ const students = computed(() => sortStudents(props.cls.students));
 const byId = computed(() => Object.fromEntries(props.cls.students.map((s) => [s.id, s])));
 const placed = computed(() => roleMap(props.exam));
 const unassigned = computed(() => students.value.filter((s) => !placed.value[s.id]));
-const sizeText = computed(() => roles.value.map((r) => `${r.name || t('common.untitled')} × ${roleCount(r)}`).join(', '));
+const sizeText = computed(() =>
+  props.exam.grid.useRoles ? roles.value.map((r) => `${r.name || t('common.untitled')} × ${roleCount(r)}`).join(', ') : t('groups.sameSheet'),
+);
 
 function label(s) {
   return `${s.lastName} ${s.firstName}`.trim();
@@ -78,7 +80,7 @@ function clearAll() {
           <button class="icon-btn danger" :title="t('common.delete')" @click="removeGroup(gi)"><Icon name="trash" :size="16" /></button>
         </header>
         <label v-for="slot in groupSlots(props.exam.grid, g)" :key="slot.role.id + slot.index" class="slot">
-          <span class="slot-role">{{ slot.role.name || t('common.untitled') }}</span>
+          <span class="slot-role">{{ props.exam.grid.useRoles ? slot.role.name || t('common.untitled') : t('groups.member', { n: slot.index + 1 }) }}</span>
           <select class="input" :value="slot.studentId || ''" @change="setSlot(g, slot, $event.target.value)">
             <option value="">{{ t('groups.pick') }}</option>
             <option v-for="s in options(slot.studentId)" :key="s.id" :value="s.id">{{ label(s) }}</option>

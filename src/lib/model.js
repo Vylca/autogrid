@@ -75,7 +75,8 @@ export function presetLevels(presetId) {
 
 // categoryNames: null or [] for a grid without categories.
 // roleNames: group work, each role is graded as its own grid.
-export function newGrid({ name, type, presetId, categoryNames = null, roleNames = null }) {
+// groupWork without roleNames: same sheet for every member, groups of groupSize.
+export function newGrid({ name, type, presetId, categoryNames = null, roleNames = null, groupWork = false, groupSize = 2 }) {
   const now = new Date().toISOString();
   const levels = presetLevels(presetId);
   const grid = {
@@ -87,6 +88,8 @@ export function newGrid({ name, type, presetId, categoryNames = null, roleNames 
     presetId: presetId || 'empty',
     useCategories: false,
     groupWork: false,
+    useRoles: false,
+    groupSize: 2,
     rowImportance: false,
     cellOverride: false,
     categoryComments: false,
@@ -100,11 +103,13 @@ export function newGrid({ name, type, presetId, categoryNames = null, roleNames 
   if (grid.type === 'competences') {
     const roles = (roleNames || []).map((n) => String(n).trim()).filter(Boolean);
     const names = roles.length ? roles : (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
-    grid.groupWork = roles.length > 0;
+    grid.groupWork = !!groupWork || roles.length > 0;
+    grid.useRoles = roles.length > 0;
+    grid.groupSize = Math.min(8, Math.max(2, Math.round(groupSize) || 2));
     grid.useCategories = names.length > 0;
     grid.categories = (names.length ? names : ['']).map((n) => {
       const cat = newCategory(n);
-      if (grid.groupWork) cat.count = 1;
+      if (grid.useRoles) cat.count = 1;
       cat.rows = levels.map((lvl) => newRow(lvl));
       return cat;
     });

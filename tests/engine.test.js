@@ -311,3 +311,28 @@ test('group work: random groups fill every slot, then new groups', () => {
   fillRandomly(e, ids);
   assert.equal(e.groups.length, 3);
 });
+
+test('group work without roles: same sheet for every member, graded separately', () => {
+  const g = newGrid({ name: 'Dialogue', type: 'competences', presetId: '3e', groupWork: true, groupSize: 2 });
+  assert.equal(g.groupWork, true);
+  assert.equal(g.useRoles, false);
+  assert.equal(groupSize(g), 2);
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  fillRandomly(e, ['a', 'b', 'c']);
+  assert.equal(e.groups.length, 2);
+  const rows = e.grid.categories[0].rows;
+  e.results.a = { marks: Object.fromEntries(rows.map((r) => [r.id, '6'])), comments: {}, comment: '' };
+  e.results.b = { marks: Object.fromEntries(rows.map((r) => [r.id, '4'])), comments: {}, comment: '' };
+  assert.equal(examScore(e, 'a').score, 20);
+  assert.equal(examScore(e, 'b').score, 12);
+  assert.equal(examScore(e, 'c').status, 'empty');
+  assert.equal(examScore(e, 'z').status, 'noRole');
+  assert.equal(scaleInfo(e.grid).total, 20);
+});
+
+test('0.4 group grids keep their roles', () => {
+  const g = newGrid({ name: 'x', type: 'competences', presetId: 'empty', roleNames: ['A', 'B'] });
+  delete g.useRoles;
+  migrateGrid(g);
+  assert.equal(g.useRoles, true);
+});

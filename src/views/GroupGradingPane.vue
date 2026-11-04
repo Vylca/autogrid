@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { emptyResult } from '../lib/model.js';
-import { scaleInfo } from '../lib/bareme.js';
+import { scaleInfo, usesRoles } from '../lib/bareme.js';
 import { itemScore, formatNumber } from '../lib/scoring.js';
 import { groupMembers, roleMap, examScore, examAverage, rolesOf } from '../lib/groups.js';
 import Icon from '../components/Icon.vue';
@@ -55,8 +55,19 @@ watch(visible, () => {
   keepVisible();
 });
 
+const withRoles = computed(() => usesRoles(grid.value));
+// Without roles every member has the whole grid.
+const allRows = computed(() => grid.value.categories.flatMap((c) => c.rows));
+// Category name shown above the first row of each category (no roles, several categories).
+const catStarts = computed(() => {
+  const out = {};
+  if (withRoles.value || !grid.value.useCategories) return out;
+  for (const c of grid.value.categories) if (c.rows[0]) out[c.rows[0].id] = c.name || t('common.untitled');
+  return out;
+});
+
 function rowsOf(m) {
-  return roleById.value[m.role.id]?.rows || [];
+  return withRoles.value ? roleById.value[m.role.id]?.rows || [] : allRows.value;
 }
 
 function resultOf(id) {
@@ -261,16 +272,16 @@ function setRowComment(id, rowId, value) {
             <header class="gsheet-head">
               <div class="gs-who">
                 <div class="gs-name"><strong>{{ byId[m.studentId].lastName }}</strong> {{ byId[m.studentId].firstName }}</div>
-                <span class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
+                <span v-if="withRoles" class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
               </div>
               <div class="mini-score" :class="'st-' + memberStatus(m.studentId)">
                 <strong>{{ scoreText(scores[m.studentId]) || '–' }}</strong>
                 <span>/ {{ formatNumber(info.target, lang) }}</span>
               </div>
             </header>
+            <template v-for="(row, ri) in rowsOf(m)" :key="row.id">
+            <div v-if="catStarts[row.id]" class="scat">{{ catStarts[row.id] }}</div>
             <div
-              v-for="(row, ri) in rowsOf(m)"
-              :key="row.id"
               class="sline"
               :class="{ rfocus: offset + i === focusSheet && ri === focusRow }"
               :data-focused="offset + i === focusSheet && ri === focusRow"
@@ -300,6 +311,7 @@ function setRowComment(id, rowId, value) {
                 @input="setRowComment(m.studentId, row.id, $event.target.value)"
               />
             </div>
+            </template>
             <footer class="gsheet-foot">
               <textarea
                 class="input"
@@ -539,6 +551,14 @@ function setRowComment(id, rowId, value) {
 }
 .mini-score.st-complete {
   border-color: var(--ink);
+}
+.scat {
+  padding: 6px 12px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent-ink);
 }
 .sline {
   display: grid;

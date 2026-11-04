@@ -1,5 +1,5 @@
 // Score computation for one student on one grid.
-import { scaleInfo, criterionMax, colorPoints, cellPoints, categoriesOf } from './bareme.js';
+import { scaleInfo, criterionMax, colorPoints, cellPoints, categoriesOf, usesRoles } from './bareme.js';
 
 // Marks are always whole or half points.
 export const ROUND_STEP = 0.5;
@@ -13,10 +13,15 @@ export function gridItems(grid, info = scaleInfo(grid), roleId = undefined) {
   }
   const items = [];
   for (const cat of categoriesOf(grid)) {
-    if (grid.groupWork && roleId !== undefined && cat.id !== roleId) continue;
+    if (usesRoles(grid) && roleId !== undefined && cat.id !== roleId) continue;
     for (const row of cat.rows) items.push({ id: row.id, max: info.rowMax[row.id] || 0, row, category: cat });
   }
   return items;
+}
+
+// Group work: a student who is not in a group has no sheet.
+export function noRoleScore(info) {
+  return { score: null, internalScore: null, max: info.target, internalMax: info.total, converted: false, earned: 0, possible: 0, graded: 0, ungraded: 0, total: 0, status: 'noRole' };
 }
 
 export function roundTo(value, step) {
@@ -45,10 +50,8 @@ export function itemScore(grid, item, mark, info = scaleInfo(grid)) {
 // 'noRole' (group work, student not placed in a group).
 export function scoreStudent(grid, result, roleId = undefined) {
   const info = scaleInfo(grid);
-  if (grid.groupWork && !categoriesOf(grid).some((c) => c.id === roleId)) {
-    return { score: null, internalScore: null, max: info.target, internalMax: info.total, converted: false, earned: 0, possible: 0, graded: 0, ungraded: 0, total: 0, status: 'noRole' };
-  }
-  const items = gridItems(grid, info, grid.groupWork ? roleId : undefined);
+  if (usesRoles(grid) && !categoriesOf(grid).some((c) => c.id === roleId)) return noRoleScore(info);
+  const items = gridItems(grid, info, usesRoles(grid) ? roleId : undefined);
   const marks = result?.marks || {};
   let earned = 0;
   let possible = 0;
