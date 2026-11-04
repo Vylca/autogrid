@@ -54,20 +54,20 @@ onMounted(async () => {
         </div>
       </div>
       <nav class="nav">
-        <button :class="{ active: section === 'exams' }" @click="navigate('exams')">
-          <Icon name="exam" /> {{ t('nav.exams') }}
+        <button :class="{ active: section === 'exams' }" :title="t('nav.exams')" @click="navigate('exams')">
+          <Icon name="exam" /> <span class="nav-label">{{ t('nav.exams') }}</span>
         </button>
-        <button :class="{ active: section === 'grids' }" @click="navigate('grids')">
-          <Icon name="grid" /> {{ t('nav.grids') }}
+        <button :class="{ active: section === 'grids' }" :title="t('nav.grids')" @click="navigate('grids')">
+          <Icon name="grid" /> <span class="nav-label">{{ t('nav.grids') }}</span>
         </button>
-        <button :class="{ active: section === 'classes' }" @click="navigate('classes')">
-          <Icon name="users" /> {{ t('nav.classes') }}
+        <button :class="{ active: section === 'classes' }" :title="t('nav.classes')" @click="navigate('classes')">
+          <Icon name="users" /> <span class="nav-label">{{ t('nav.classes') }}</span>
         </button>
       </nav>
       <div class="sidebar-foot">
         <div class="segmented" role="group" :aria-label="t('nav.language')">
-          <button :class="{ on: lang === 'fr' }" @click="setLang('fr')">Français</button>
-          <button :class="{ on: lang === 'en' }" @click="setLang('en')">English</button>
+          <button :class="{ on: lang === 'fr' }" title="Français" @click="setLang('fr')"><span class="long">Français</span><span class="short">FR</span></button>
+          <button :class="{ on: lang === 'en' }" title="English" @click="setLang('en')"><span class="long">English</span><span class="short">EN</span></button>
         </div>
       </div>
     </aside>

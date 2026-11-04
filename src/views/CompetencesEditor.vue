@@ -4,6 +4,7 @@ import { t, lang } from '../lib/i18n.js';
 import { CECRL_LEVELS, newRow, newCategory, presetLevels } from '../lib/model.js';
 import { formatNumber } from '../lib/scoring.js';
 import ImportanceStepper from '../components/ImportanceStepper.vue';
+import CountStepper from '../components/CountStepper.vue';
 import ColorValues from '../components/ColorValues.vue';
 import DescriptorPicker from '../components/DescriptorPicker.vue';
 import Icon from '../components/Icon.vue';
@@ -37,8 +38,11 @@ watch(
 
 const nameInput = ref(null);
 
+const roles = computed(() => !!props.grid.groupWork);
+
 function addCategory() {
-  const cat = newCategory(t('grid.categoryN', { n: cats.value.length + 1 }));
+  const cat = newCategory(t(roles.value ? 'grid.roleN' : 'grid.categoryN', { n: cats.value.length + 1 }));
+  if (roles.value) cat.count = 1;
   cat.rows = presetLevels(props.grid.presetId).map((l) => newRow(l));
   cats.value.push(cat);
   activeId.value = cat.id;
@@ -49,7 +53,8 @@ function removeCategory() {
   const cat = active.value;
   if (cats.value.length <= 1) return;
   const hasText = cat.rows.some((r) => r.descriptor);
-  if (!window.confirm(t(hasText ? 'grid.confirmDeleteCategoryRows' : 'grid.confirmDeleteCategory', { name: cat.name || t('common.untitled') }))) return;
+  const key = roles.value ? (hasText ? 'grid.confirmDeleteRoleRows' : 'grid.confirmDeleteRole') : hasText ? 'grid.confirmDeleteCategoryRows' : 'grid.confirmDeleteCategory';
+  if (!window.confirm(t(key, { name: cat.name || t('common.untitled') }))) return;
   const i = cats.value.indexOf(cat);
   cats.value.splice(i, 1);
   activeId.value = cats.value[Math.max(0, i - 1)]?.id;
@@ -98,21 +103,22 @@ function insertDescriptor(row, text) {
         @click="activeId = c.id"
       >
         <span class="tab-name">{{ c.name || t('common.untitled') }}</span>
-        <span class="tab-pts">{{ pts(props.info.catMax[c.id] || 0) }}</span>
+        <span class="tab-pts">{{ roles ? t('grid.nStudents', { n: c.count || 1 }) : pts(props.info.catMax[c.id] || 0) }}</span>
       </button>
-      <button v-if="!props.locked" class="cat-tab add" @click="addCategory"><Icon name="plus" :size="16" /> {{ t('grid.addCategory') }}</button>
+      <button v-if="!props.locked" class="cat-tab add" @click="addCategory"><Icon name="plus" :size="16" /> {{ roles ? t('grid.addRole') : t('grid.addCategory') }}</button>
     </div>
 
     <section v-if="active" class="cat-panel" :class="{ tabbed: props.grid.useCategories }">
       <header v-if="props.grid.useCategories" class="cat-head">
-        <input ref="nameInput" v-model="active.name" class="input cat-name" :placeholder="t('grid.categoryName')" />
-        <ImportanceStepper v-model="active.importance" :disabled="props.locked" />
+        <input ref="nameInput" v-model="active.name" class="input cat-name" :placeholder="roles ? t('grid.roleName') : t('grid.categoryName')" />
+        <CountStepper v-if="roles" v-model="active.count" :label="t('grid.studentsPerRole')" />
+        <ImportanceStepper v-else v-model="active.importance" :disabled="props.locked" />
         <strong class="cat-pts">{{ pts(props.info.catMax[active.id] || 0) }}</strong>
         <span class="spacer"></span>
         <div v-if="!props.locked" class="row-actions">
           <button class="icon-btn" :disabled="activeIndex === 0" :title="t('grid.moveLeft')" @click="moveCategory(-1)"><Icon name="left" /></button>
           <button class="icon-btn" :disabled="activeIndex === cats.length - 1" :title="t('grid.moveRight')" @click="moveCategory(1)"><Icon name="right" /></button>
-          <button class="icon-btn danger" :disabled="cats.length <= 1" :title="t('grid.deleteCategory')" @click="removeCategory"><Icon name="trash" /></button>
+          <button class="icon-btn danger" :disabled="cats.length <= 1" :title="roles ? t('grid.deleteRole') : t('grid.deleteCategory')" @click="removeCategory"><Icon name="trash" /></button>
         </div>
       </header>
 
@@ -211,6 +217,7 @@ function insertDescriptor(row, text) {
   font-size: 14px;
 }
 .cat-panel {
+  container-type: inline-size;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   background: var(--surface);
@@ -293,5 +300,21 @@ function insertDescriptor(row, text) {
 }
 .add-row .lvl-select {
   width: 84px;
+}
+/* Narrow panel: points and actions move under the descriptor. */
+@container (max-width: 640px) {
+  .row-edit {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .row-side {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cat-name {
+    width: 100%;
+  }
 }
 </style>

@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('api', {
   selftestInfo: () => ipcRenderer.invoke('selftest:info'),
   selftestScreenshot: (name) => ipcRenderer.invoke('selftest:screenshot', name),
   selftestLog: (name, data) => ipcRenderer.invoke('selftest:log', name, data),
+  selftestResize: (w, h) => ipcRenderer.invoke('selftest:resize', w, h),
   selftestDone: () => ipcRenderer.invoke('selftest:done'),
 });

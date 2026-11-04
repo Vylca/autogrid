@@ -21,7 +21,8 @@ function counts(g) {
   if (g.type === 'paliers') return [t('grids.nCriteria', { n: g.criteria.length })];
   const rows = g.categories.reduce((n, c) => n + c.rows.length, 0);
   const out = [];
-  if (g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
+  if (g.groupWork) out.push(t('grids.nRoles', { n: g.categories.length }));
+  else if (g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
   out.push(t('grids.nRows', { n: rows }));
   return out;
 }
@@ -31,9 +32,10 @@ function usedBy(g) {
 
 // New grid
 const showNew = ref(false);
-const form = ref({ name: '', type: 'competences', presetId: '5e', useCategories: false, categories: [], draft: '' });
+const blankForm = () => ({ name: '', type: 'competences', presetId: '5e', groupWork: false, useCategories: false, categories: [], draft: '' });
+const form = ref(blankForm());
 function openNew() {
-  form.value = { name: '', type: 'competences', presetId: '5e', useCategories: false, categories: [], draft: '' };
+  form.value = blankForm();
   showNew.value = true;
 }
 function addDraft() {
@@ -45,8 +47,10 @@ function create() {
   if (!form.value.name.trim()) return;
   addDraft();
   const f = form.value;
-  const names = f.type === 'competences' && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
-  const g = newGrid({ name: f.name.trim(), type: f.type, presetId: f.presetId, categoryNames: names });
+  const skills = f.type === 'competences';
+  const roles = skills && f.groupWork ? (f.categories.length ? f.categories : [t('grid.roleN', { n: 1 }), t('grid.roleN', { n: 2 })]) : null;
+  const names = skills && !f.groupWork && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
+  const g = newGrid({ name: f.name.trim(), type: f.type, presetId: f.presetId, categoryNames: names, roleNames: roles });
   store.data.grids.push(g);
   showNew.value = false;
   navigate('grid', g.id);
@@ -148,6 +152,14 @@ async function runExport() {
         </div>
       </div>
       <div v-if="form.type === 'competences'" class="field">
+        <span>{{ t('grid.groupWork') }}</span>
+        <div class="segmented">
+          <button :class="{ on: !form.groupWork }" @click="form.groupWork = false">{{ t('common.no') }}</button>
+          <button :class="{ on: form.groupWork }" @click="form.groupWork = true">{{ t('common.yes') }}</button>
+        </div>
+        <span class="hint">{{ t('grids.groupWorkHint') }}</span>
+      </div>
+      <div v-if="form.type === 'competences' && !form.groupWork" class="field">
         <span>{{ t('grid.useCategories') }}</span>
         <div class="segmented">
           <button :class="{ on: !form.useCategories }" @click="form.useCategories = false">{{ t('common.no') }}</button>
@@ -155,8 +167,8 @@ async function runExport() {
         </div>
         <span class="hint">{{ t('grids.categoriesHint') }}</span>
       </div>
-      <div v-if="form.type === 'competences' && form.useCategories" class="field">
-        <span>{{ t('grids.categoryNames') }}</span>
+      <div v-if="form.type === 'competences' && (form.useCategories || form.groupWork)" class="field">
+        <span>{{ form.groupWork ? t('grids.roleNames') : t('grids.categoryNames') }}</span>
         <div class="chips">
           <span v-for="(c, i) in form.categories" :key="c" class="chip">
             {{ c }}
@@ -164,7 +176,7 @@ async function runExport() {
           </span>
         </div>
         <div class="draft">
-          <input v-model="form.draft" class="input" :placeholder="t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
+          <input v-model="form.draft" class="input" :placeholder="form.groupWork ? t('grids.rolePlaceholder') : t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
           <button class="btn small" :disabled="!form.draft.trim()" @click="addDraft"><Icon name="plus" :size="15" /> {{ t('grids.addCategoryName') }}</button>
         </div>
       </div>

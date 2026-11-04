@@ -229,7 +229,7 @@ const studentComment = computed({
     </div>
   </div>
   <div v-else class="grading">
-    <aside class="roster">
+    <aside class="roster only-wide">
       <div class="roster-list">
         <button
           v-for="s in students"
@@ -255,6 +255,9 @@ const studentComment = computed({
         <div class="who">
           <div class="student-name"><strong>{{ current.lastName }}</strong> {{ current.firstName }}</div>
           <div class="hint">{{ t('grading.position', { n: currentPos + 1, total: students.length }) }}</div>
+          <select v-model="currentId" class="input only-narrow student-select" :aria-label="t('export.students')">
+            <option v-for="s in students" :key="s.id" :value="s.id">{{ s.lastName }} {{ s.firstName }} {{ scoreText(scores[s.id]) ? '(' + scoreText(scores[s.id]) + ')' : '' }}</option>
+          </select>
         </div>
         <div class="head-actions">
           <button class="icon-btn" :disabled="currentPos <= 0" :title="t('grading.prev')" @click="moveStudent(-1)"><Icon name="left" /></button>
@@ -503,9 +506,16 @@ const studentComment = computed({
 /* Sheet */
 .sheet {
   min-width: 0;
+  container-type: inline-size;
+}
+.student-select {
+  width: auto;
+  max-width: 100%;
+  margin-top: 6px;
 }
 .sheet-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   padding-bottom: 14px;
@@ -651,6 +661,7 @@ const studentComment = computed({
 }
 .matrix {
   width: 100%;
+  min-width: 620px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -799,5 +810,40 @@ const studentComment = computed({
   border-top: 1px solid var(--rule);
   font-size: 13px;
   color: var(--ink-2);
+}
+@media (max-width: 1100px) {
+  .grading {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+@media (max-width: 900px) {
+  .grading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Narrow sheet: the color picker moves under the description. */
+@container (max-width: 760px) {
+  .line {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 6px 10px;
+  }
+  .line .acq-picker {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  .line-side {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .line-comment {
+    grid-column: 2 / -1;
+  }
+  .score-box {
+    min-width: 0;
+  }
+  .head-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

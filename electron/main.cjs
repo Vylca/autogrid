@@ -213,6 +213,9 @@ ipcMain.handle('selftest:screenshot', async (_e, name) => {
 ipcMain.handle('selftest:log', (_e, name, data) => {
   if (SELFTEST_DIR) fs.writeFileSync(path.join(SELFTEST_DIR, `${name}.json`), JSON.stringify(data, null, 2));
 });
+ipcMain.handle('selftest:resize', (_e, w, h) => {
+  if (SELFTEST_DIR && mainWindow) mainWindow.setContentSize(w, h);
+});
 ipcMain.handle('selftest:done', () => {
   if (SELFTEST_DIR) setTimeout(() => app.quit(), 200);
 });
@@ -243,8 +246,8 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
-    minWidth: 1000,
-    minHeight: 640,
+    minWidth: 720,
+    minHeight: 520,
     title: 'AutoGrid',
     icon: ICON,
     autoHideMenuBar: true,

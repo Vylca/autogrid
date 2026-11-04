@@ -217,6 +217,7 @@ export function migrateGrid(g, { legacy = false } = {}) {
 
 export function migrateExam(e) {
   e.results = e.results || {};
+  e.groups = Array.isArray(e.groups) ? e.groups : [];
   if (!e.grid) return e;
   const wasOld = e.grid.model !== GRID_MODEL;
   const graded = Object.values(e.results).some((r) => r && r.marks && Object.keys(r.marks).length > 0);

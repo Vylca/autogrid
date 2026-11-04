@@ -6,12 +6,14 @@ export const ROUND_STEP = 0.5;
 
 // Every gradable item of a grid, with its maximum points.
 // Skills grid: one item per row, in category order. Level grid: one item per criterion.
-export function gridItems(grid, info = scaleInfo(grid)) {
+// Group work: pass the student's role to get only the rows of that role.
+export function gridItems(grid, info = scaleInfo(grid), roleId = undefined) {
   if (grid.type === 'paliers') {
     return grid.criteria.map((c) => ({ id: c.id, max: criterionMax(grid, c.id, info), criterion: c }));
   }
   const items = [];
   for (const cat of categoriesOf(grid)) {
+    if (grid.groupWork && roleId !== undefined && cat.id !== roleId) continue;
     for (const row of cat.rows) items.push({ id: row.id, max: info.rowMax[row.id] || 0, row, category: cat });
   }
   return items;
@@ -39,10 +41,14 @@ export function itemScore(grid, item, mark, info = scaleInfo(grid)) {
   return { earned, counted: true };
 }
 
-// status: 'empty' (nothing graded), 'partial', 'complete', 'absent', 'exempt'
-export function scoreStudent(grid, result) {
+// status: 'empty' (nothing graded), 'partial', 'complete', 'absent', 'exempt',
+// 'noRole' (group work, student not placed in a group).
+export function scoreStudent(grid, result, roleId = undefined) {
   const info = scaleInfo(grid);
-  const items = gridItems(grid, info);
+  if (grid.groupWork && !categoriesOf(grid).some((c) => c.id === roleId)) {
+    return { score: null, internalScore: null, max: info.target, internalMax: info.total, converted: false, earned: 0, possible: 0, graded: 0, ungraded: 0, total: 0, status: 'noRole' };
+  }
+  const items = gridItems(grid, info, grid.groupWork ? roleId : undefined);
   const marks = result?.marks || {};
   let earned = 0;
   let possible = 0;

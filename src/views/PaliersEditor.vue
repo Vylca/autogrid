@@ -216,6 +216,7 @@ function insertDescriptor(levelId, critId, text) {
 }
 .lvl-list,
 .crit-list {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -324,5 +325,17 @@ function insertDescriptor(levelId, critId, text) {
 }
 .flag {
   color: #c77700;
+}
+@media (max-width: 1100px) {
+  .two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width: 560px) {
+  .crit-item {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
 }
 </style>

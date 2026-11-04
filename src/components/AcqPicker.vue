@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { ACQ_LEVELS, SPECIAL_MARKS } from '../lib/model.js';
 import { t } from '../lib/i18n.js';
 
-const props = defineProps({ value: String });
+const props = defineProps({ value: String, compact: Boolean });
 const emit = defineEmits(['pick']);
 
 const levels = [...ACQ_LEVELS].reverse(); // 1 (insuffisante) to 6 (très bonne)
@@ -17,7 +17,7 @@ const label = computed(() => {
 </script>
 
 <template>
-  <div class="acq-picker">
+  <div class="acq-picker" :class="{ compact: props.compact }">
     <div class="acq-buttons" role="radiogroup">
       <button
         v-for="l in levels"
@@ -125,5 +125,22 @@ const label = computed(() => {
 .acq-swatch {
   width: 10px;
   height: 10px;
+}
+.compact .acq-buttons {
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.compact .acq-btn {
+  width: 27px;
+  height: 27px;
+  font-size: 13px;
+}
+.compact .acq-btn.special {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+.compact .acq-sep {
+  margin: 0 1px;
 }
 </style>

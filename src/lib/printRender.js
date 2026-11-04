@@ -62,14 +62,16 @@ function header({ exam, grid, student, score, lang, blank, className, info }) {
   </div>`;
 }
 
-function competencesTable({ grid, result, lang, blank, info }) {
+function competencesTable({ grid, result, lang, blank, info, roleId }) {
   const marks = result?.marks || {};
   const comments = result?.comments || {};
   const items = gridItems(grid, info);
   const byId = Object.fromEntries(items.map((it) => [it.id, it]));
   const withComments = !blank && grid.categoryComments;
+  const rowComments = grid.groupWork || !grid.useCategories;
   let rows = '';
   for (const cat of grid.categories) {
+    if (grid.groupWork && roleId && cat.id !== roleId) continue;
     if (grid.useCategories) {
       let earned = 0;
       let max = 0;
@@ -91,7 +93,7 @@ function competencesTable({ grid, result, lang, blank, info }) {
       const mark = blank ? undefined : marks[row.id];
       const lvl = acqLevel(mark);
       let text = row.descriptor ? `<div class="desc">${nl2br(row.descriptor)}</div>` : '';
-      if (withComments && !grid.useCategories && comments[row.id]) {
+      if (withComments && rowComments && comments[row.id]) {
         text += `<div class="cat-comment">${nl2br(comments[row.id])}</div>`;
       }
       let tr = `<tr><td class="lvl">${esc(row.level)}</td><td class="txt">${text}</td>`;
@@ -114,7 +116,7 @@ function competencesTable({ grid, result, lang, blank, info }) {
       tr += `<td class="pts">${pts}</td></tr>`;
       rows += tr;
     }
-    if (withComments && grid.useCategories && comments[cat.id]) {
+    if (withComments && !rowComments && comments[cat.id]) {
       rows += `<tr class="cat-comment-row"><td colspan="4"><span class="cat-comment">${nl2br(comments[cat.id])}</span></td></tr>`;
     }
   }
@@ -183,12 +185,12 @@ function paliersTable({ grid, result, lang, blank, info }) {
 }
 
 // Returns the HTML for one block (one student, or a blank grid).
-export function renderGridBlock({ exam = null, grid, student = null, result = null, lang = 'fr', blank = false, className = '' }) {
+export function renderGridBlock({ exam = null, grid, student = null, result = null, lang = 'fr', blank = false, className = '', roleId = undefined }) {
   const info = scaleInfo(grid);
-  const score = student && !blank ? scoreStudent(grid, result) : null;
+  const score = student && !blank ? scoreStudent(grid, result, roleId) : null;
   let html = `<div class="g">`;
   html += header({ exam, grid, student, score, lang, blank, className, info });
-  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank, info }) : competencesTable({ grid, result, lang, blank, info });
+  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank, info }) : competencesTable({ grid, result, lang, blank, info, roleId });
   if (info.total !== info.target) {
     const line =
       score && score.internalScore !== null

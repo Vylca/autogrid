@@ -6,6 +6,7 @@ import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResu
 import { setCellPoints } from './bareme.js';
 import { exportExamPdf, exportBlankGrid } from './exporter.js';
 import { scoreStudent } from './scoring.js';
+import { fillRandomly, roleMap } from './groups.js';
 
 const FAKE = [
   ['ARNAUD', 'Lina'], ['BENALI', 'Yanis'], ['COSTA', 'Inès'], ['DIALLO', 'Moussa'], ['DUBOIS LAMBERT', 'Chloé'],
@@ -94,10 +95,38 @@ function seed() {
     e3.results[s.id] = r;
   });
 
-  store.data.grids.push(comp, plain, pal);
+  const gw = newGrid({ name: 'Interview du monstre', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'] });
+  gw.categories[0].rows = [
+    ['A1', 'Poser une question fermée'],
+    ['A1', 'Poser une question ouverte'],
+    ['A2', "S'exprimer de manière globalement compréhensible"],
+    ['A2', 'Noter les réponses clairement'],
+    ['B1', 'Clarifier les questions qui bloquent ou poser des questions qui sortent des modèles'],
+  ].map(([l, d]) => newRow(l, d));
+  gw.categories[1].rows = [
+    ['A1', 'Se décrire simplement'],
+    ['A1', 'Formuler des phrases simples et montrer une compréhension des questions de base'],
+    ['A2', 'Utiliser la négation ou parler de ses défauts clairement'],
+    ['A2', "S'exprimer de manière globalement compréhensible"],
+    ['B1', 'Inventer une réponse absente de ma description'],
+  ].map(([l, d]) => newRow(l, d));
+  const eg = newExam({ name: 'Monster interview', date: '2026-11-02', classId: c3.id, grid: gw });
+  let seedN = 7;
+  fillRandomly(eg, c3.students.map((s) => s.id), () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647));
+  const gmap = roleMap(eg);
+  const gcodes = ['6', '5', '4', '3', '5', '6', '2'];
+  c3.students.slice(0, 6).forEach((s, si) => {
+    const role = eg.grid.categories.find((c) => c.id === gmap[s.id].roleId);
+    const r = emptyResult();
+    role.rows.forEach((row, ri) => (r.marks[row.id] = gcodes[(si + ri) % gcodes.length]));
+    eg.results[s.id] = r;
+  });
+
+  store.data.grids.push(comp, plain, pal, gw);
+  store.data.exams.push(eg);
   store.data.classes.push(c3, c5);
   store.data.exams.push(e5, e3);
-  return { comp, plain, pal, c3, c5, e5, e3 };
+  return { comp, plain, pal, gw, c3, c5, e5, e3, eg };
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -121,6 +150,8 @@ export async function runSelftest(info) {
     c5: byId(store.data.classes, raw.c5.id),
     e5: byId(store.data.exams, raw.e5.id),
     e3: byId(store.data.exams, raw.e3.id),
+    eg: byId(store.data.exams, raw.eg.id),
+    gw: byId(store.data.grids, raw.gw.id),
   };
   navigate('exams');
   await shot('01-exams');
@@ -145,6 +176,15 @@ export async function runSelftest(info) {
   await window.api.selftestLog('keyboard', { marks: before, route: store.route.studentId === last.id ? 'same' : 'moved' });
   navigate('exam', d.e3.id, { tab: 'grading' });
   await shot('03-grading-paliers');
+  navigate('exam', d.eg.id, { tab: 'groups' });
+  await shot('10-groups');
+  navigate('exam', d.eg.id, { tab: 'grading' });
+  await shot('11-group-grading');
+  d.eg.sheetsVisible = 1;
+  await shot('11b-group-grading-one');
+  d.eg.sheetsVisible = 2;
+  navigate('grid', d.gw.id);
+  await shot('12-grid-roles');
   navigate('grid', d.comp.id);
   await shot('04-grid-competences');
   document.querySelector('.cat-tab:nth-child(2)')?.click();
@@ -201,12 +241,36 @@ export async function runSelftest(info) {
   await shot('02d-grid-legacy');
   await window.api.selftestLog('legacy', d.c5.students.map((s) => scoreStudent(d.e5.grid, d.e5.results[s.id])));
   d.e5.grid.legacy = false;
+  await exportExamPdf(d.eg, d.c3, { studentIds: d.c3.students.map((s) => s.id), layout: 'packed', color: true, orientation: 'portrait', outputPath: `${dir}/group-packed.pdf` });
+  await exportBlankGrid(d.gw, { layout: 'packed', color: true, orientation: 'portrait', outputPath: `${dir}/blank-roles.pdf` });
+  await window.api.selftestLog('group', d.c3.students.map((s) => ({ name: s.firstName, ...scoreStudent(d.eg.grid, d.eg.results[s.id], roleMap(d.eg)[s.id]?.roleId) })));
   await exportBlankGrid(d.comp, { layout: 'packed', color: true, orientation: 'portrait', outputPath: `${dir}/blank-comp-fill.pdf` });
   await exportBlankGrid(d.pal, { layout: 'perPage', color: true, orientation: 'landscape', outputPath: `${dir}/blank-pal.pdf` });
   store.data.settings.lang = 'en';
   navigate('exam', d.e5.id, { tab: 'grading' });
   await shot('09-grading-en');
   await exportExamPdf(d.e5, d.c5, { studentIds: ids5.slice(0, 2), layout: 'perPage', color: true, orientation: 'portrait', outputPath: `${dir}/comp-en.pdf` });
+  store.data.settings.lang = 'fr';
+  store.toasts.splice(0);
+  for (const [w, h] of [[1000, 680], [760, 560]]) {
+    await window.api.selftestResize(w, h);
+    await wait(300);
+    store.toasts.splice(0);
+    navigate('exams');
+    await shot(`20-small-${w}-exams`);
+    navigate('exam', d.e5.id, { tab: 'grading' });
+    await shot(`21-small-${w}-grading`);
+    navigate('exam', d.eg.id, { tab: 'grading' });
+    await shot(`22-small-${w}-group`);
+    navigate('grid', d.comp.id);
+    await shot(`23-small-${w}-grid`);
+    navigate('grid', d.pal.id);
+    await shot(`24-small-${w}-paliers`);
+    navigate('exam', d.e3.id, { tab: 'grading' });
+    await shot(`25-small-${w}-paliers-grading`);
+    navigate('exam', d.e5.id, { tab: 'export' });
+    await shot(`26-small-${w}-export`);
+  }
   await wait(300);
   await window.api.selftestDone();
 }

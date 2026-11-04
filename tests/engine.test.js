@@ -257,3 +257,57 @@ test('windows-1252 decoding', () => {
   const bytes = new Uint8Array([0x45, 0x6c, 0xe8, 0x76, 0x65, 0x73]);
   assert.equal(decodeBytes(bytes), 'Elèves');
 });
+
+// ---- Group work -------------------------------------------------------------------------
+
+import { roleMap, examScore, examAverage, fillRandomly, assignStudent, newGroup, groupSlots, groupSize } from '../src/lib/groups.js';
+
+function interviewExam() {
+  const g = newGrid({ name: 'Interview', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'] });
+  g.categories[0].rows = ['A1', 'A1', 'A2', 'A2', 'B1'].map((l) => newRow(l));
+  g.categories[1].rows = ['A1', 'A1', 'A2', 'A2'].map((l) => newRow(l));
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  return e;
+}
+
+test('group work: each role is graded on the whole target', () => {
+  const e = interviewExam();
+  const g = e.grid;
+  assert.equal(g.groupWork, true);
+  const info = scaleInfo(g);
+  assert.deepEqual(g.categories.map((c) => info.catMax[c.id]), [20, 20]);
+  assert.deepEqual(g.categories[0].rows.map((r) => info.rowMax[r.id]), [4, 4, 4, 4, 4]);
+  assert.deepEqual(g.categories[1].rows.map((r) => info.rowMax[r.id]), [5, 5, 5, 5]);
+  assert.equal(info.total, 20);
+  const [inter, monstre] = g.categories;
+  const grp = newGroup(g);
+  e.groups.push(grp);
+  assignStudent(e, grp, inter.id, 0, 'giovani');
+  assignStudent(e, grp, monstre.id, 0, 'illyes');
+  e.results.giovani = { marks: Object.fromEntries(inter.rows.map((r) => [r.id, '6'])), comments: {}, comment: '' };
+  e.results.illyes = { marks: Object.fromEntries(monstre.rows.map((r, i) => [r.id, i < 2 ? '6' : '1'])), comments: {}, comment: '' };
+  assert.equal(examScore(e, 'giovani').score, 20);
+  assert.equal(examScore(e, 'illyes').score, 10);
+  assert.equal(examScore(e, 'illyes').status, 'complete');
+  assert.equal(examScore(e, 'nobody').status, 'noRole');
+  assert.equal(examAverage(e, ['giovani', 'illyes', 'nobody']), 15);
+  // Moving a student removes them from their previous slot.
+  assignStudent(e, grp, inter.id, 0, 'illyes');
+  assert.deepEqual(roleMap(e), { illyes: { roleId: inter.id, groupId: grp.id, groupIndex: 0 } });
+});
+
+test('group work: random groups fill every slot, then new groups', () => {
+  const e = interviewExam();
+  e.grid.categories[1].count = 2;
+  assert.equal(groupSize(e.grid), 3);
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  let seed = 1;
+  fillRandomly(e, ids, () => ((seed = (seed * 16807) % 2147483647) / 2147483647));
+  assert.equal(e.groups.length, 3);
+  const map = roleMap(e);
+  assert.deepEqual(Object.keys(map).sort(), ids);
+  assert.equal(groupSlots(e.grid, e.groups[2]).filter((s) => s.studentId).length, 1);
+  // A second call places nobody twice.
+  fillRandomly(e, ids);
+  assert.equal(e.groups.length, 3);
+});

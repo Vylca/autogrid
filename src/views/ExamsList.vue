@@ -3,7 +3,8 @@ import { computed, ref } from 'vue';
 import { store, navigate, findClass, findGrid } from '../lib/store.js';
 import { t, lang, formatDate } from '../lib/i18n.js';
 import { newExam } from '../lib/model.js';
-import { scoreStudent, classAverage, formatNumber } from '../lib/scoring.js';
+import { formatNumber } from '../lib/scoring.js';
+import { examScore, examAverage, roleMap } from '../lib/groups.js';
 import { scaleInfo } from '../lib/bareme.js';
 import Icon from '../components/Icon.vue';
 import Modal from '../components/Modal.vue';
@@ -15,13 +16,15 @@ const canCreate = computed(() => store.data.grids.length > 0 && store.data.class
 
 function stats(exam) {
   const cls = findClass(exam.classId);
-  const ids = cls ? cls.students.map((s) => s.id) : [];
+  const map = exam.grid.groupWork ? roleMap(exam) : null;
+  // Group work: only students placed in a group are graded.
+  const ids = cls ? cls.students.map((s) => s.id).filter((id) => !map || map[id]) : [];
   let done = 0;
   for (const id of ids) {
-    const s = scoreStudent(exam.grid, exam.results[id]);
+    const s = examScore(exam, id, map);
     if (s.status === 'complete' || s.status === 'absent' || s.status === 'exempt') done++;
   }
-  const avg = classAverage(exam.grid, exam.results, ids);
+  const avg = examAverage(exam, ids);
   return { total: ids.length, done, avg, cls };
 }
 

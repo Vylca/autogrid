@@ -43,10 +43,26 @@ function setCategories(on) {
   g.useCategories = false;
 }
 
+function setGroupWork(on) {
+  const g = props.grid;
+  if (on === !!g.groupWork) return;
+  if (on) {
+    g.groupWork = true;
+    g.useCategories = true;
+    g.categories.forEach((c, i) => {
+      if (!c.name) c.name = t('grid.roleN', { n: i + 1 });
+      if (!c.count) c.count = 1;
+    });
+    return;
+  }
+  g.groupWork = false;
+}
+
 function warningText(w) {
   const n = w.ids.length;
   if (w.type === 'zero') return t(isPal.value ? 'grid.warnZeroCrit' : 'grid.warnZero', { n });
   if (w.type === 'merged') return t(isPal.value ? 'grid.warnMergedCrit' : 'grid.warnMerged', { n });
+  if (w.type === 'emptyRole') return t('grid.warnEmptyRole', { n });
   return t('grid.warnEmptyCategory', { n });
 }
 
@@ -77,10 +93,17 @@ function leaveLegacy() {
           <WeightInput :value="props.grid.target" :pinnable="false" unit="" @set="setTarget" />
         </div>
         <div class="field">
-          <span>{{ t('grid.total') }}</span>
+          <span>{{ props.grid.groupWork ? t('grid.totalPerRole') : t('grid.total') }}</span>
           <strong class="total" :class="{ warn: info.total !== info.target }">{{ fmt(info.total) }} / {{ fmt(info.target) }}</strong>
         </div>
         <div v-if="!isPal" class="field">
+          <span>{{ t('grid.groupWork') }}</span>
+          <div class="segmented">
+            <button :class="{ on: !props.grid.groupWork }" :disabled="locked" @click="setGroupWork(false)">{{ t('common.no') }}</button>
+            <button :class="{ on: props.grid.groupWork }" :disabled="locked" @click="setGroupWork(true)">{{ t('common.yes') }}</button>
+          </div>
+        </div>
+        <div v-if="!isPal && !props.grid.groupWork" class="field">
           <span>{{ t('grid.useCategories') }}</span>
           <div class="segmented">
             <button :class="{ on: !props.grid.useCategories }" :disabled="locked" @click="setCategories(false)">{{ t('common.no') }}</button>
@@ -106,7 +129,7 @@ function leaveLegacy() {
           </label>
           <label class="checkbox">
             <input v-model="props.grid.categoryComments" type="checkbox" />
-            <span>{{ isPal ? t('grid.criterionComments') : props.grid.useCategories ? t('grid.categoryComments') : t('grid.rowComments') }}</span>
+            <span>{{ isPal ? t('grid.criterionComments') : props.grid.groupWork ? t('grid.rowComments') : props.grid.useCategories ? t('grid.categoryComments') : t('grid.rowComments') }}</span>
           </label>
         </div>
       </details>

@@ -1,4 +1,5 @@
 import { renderGridBlock } from './printRender.js';
+import { roleMap, rolesOf } from './groups.js';
 import { sortStudents } from './model.js';
 import { toast } from './store.js';
 import { t, lang } from './i18n.js';
@@ -25,10 +26,12 @@ function report(res, perStudent) {
 export async function exportExamPdf(exam, cls, opts) {
   const l = lang.value;
   const wanted = new Set(opts.studentIds);
-  const students = sortStudents(cls.students).filter((s) => wanted.has(s.id));
+  const map = exam.grid.groupWork ? roleMap(exam) : null;
+  // Group work: each student gets only the rows of their role.
+  const students = sortStudents(cls.students).filter((s) => wanted.has(s.id) && (!map || map[s.id]));
   if (!students.length) return null;
   const block = (s) =>
-    renderGridBlock({ exam, grid: exam.grid, student: s, result: exam.results[s.id], lang: l, className: cls.name });
+    renderGridBlock({ exam, grid: exam.grid, student: s, result: exam.results[s.id], lang: l, className: cls.name, roleId: map?.[s.id]?.roleId });
   const base = {
     orientation: opts.orientation,
     color: opts.color,
@@ -63,15 +66,20 @@ export async function exportExamPdf(exam, cls, opts) {
 
 // opts: { layout: 'perPage' | 'packed', color, orientation }
 export async function exportBlankGrid(grid, opts) {
+  // Group work: one blank sheet per role. Otherwise the page is filled with copies.
+  const roles = rolesOf(grid);
+  const blocks = roles.length
+    ? roles.map((r) => renderGridBlock({ grid, blank: true, lang: lang.value, roleId: r.id }))
+    : [renderGridBlock({ grid, blank: true, lang: lang.value })];
   const req = {
     kind: 'single',
-    layout: opts.layout === 'packed' ? 'fill' : 'perPage',
+    layout: opts.layout === 'packed' ? (roles.length ? 'packed' : 'fill') : 'perPage',
     orientation: opts.orientation,
     color: opts.color,
     dialogTitle: t('export.dialogTitle'),
     outputPath: opts.outputPath,
     defaultName: grid.name || t('common.untitled'),
-    documents: [{ blocks: [renderGridBlock({ grid, blank: true, lang: lang.value })] }],
+    documents: [{ blocks }],
   };
   const res = await window.api.exportPdf(plain(req));
   return report(res, false);

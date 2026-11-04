@@ -4,12 +4,17 @@ import { store, navigate, findExam, findClass } from '../lib/store.js';
 import { t } from '../lib/i18n.js';
 import Icon from '../components/Icon.vue';
 import GradingPane from './GradingPane.vue';
+import GroupGradingPane from './GroupGradingPane.vue';
+import GroupsPane from './GroupsPane.vue';
 import ExportPane from './ExportPane.vue';
 import GridEditor from './GridEditor.vue';
 
 const exam = computed(() => findExam(store.route.id));
 const cls = computed(() => (exam.value ? findClass(exam.value.classId) : null));
-const tab = computed(() => store.route.tab || 'grading');
+const tab = computed(() => {
+  const name = store.route.tab || 'grading';
+  return name === 'groups' && !exam.value?.grid.groupWork ? 'grading' : name;
+});
 
 function setTab(name) {
   store.route = { ...store.route, tab: name };
@@ -48,6 +53,7 @@ function remove() {
 
     <div class="tabs" role="tablist">
       <button :class="{ on: tab === 'grading' }" @click="setTab('grading')"><Icon name="check" :size="16" /> {{ t('exam.tabGrading') }}</button>
+      <button v-if="exam.grid.groupWork" :class="{ on: tab === 'groups' }" @click="setTab('groups')"><Icon name="users" :size="16" /> {{ t('exam.tabGroups') }}</button>
       <button :class="{ on: tab === 'grid' }" @click="setTab('grid')"><Icon name="grid" :size="16" /> {{ t('exam.tabGrid') }}</button>
       <button :class="{ on: tab === 'export' }" @click="setTab('export')"><Icon name="print" :size="16" /> {{ t('exam.tabExport') }}</button>
     </div>
@@ -57,7 +63,9 @@ function remove() {
         <p>{{ t('exam.classMissing') }}</p>
       </div>
     </template>
+    <GroupGradingPane v-else-if="tab === 'grading' && exam.grid.groupWork" :exam="exam" :cls="cls" @groups="setTab('groups')" />
     <GradingPane v-else-if="tab === 'grading'" :exam="exam" :cls="cls" />
+    <GroupsPane v-else-if="tab === 'groups' && exam.grid.groupWork" :exam="exam" :cls="cls" />
     <ExportPane v-else-if="tab === 'export'" :exam="exam" :cls="cls" />
     <div v-else-if="tab === 'grid'">
       <div class="notice"><Icon name="file" /> {{ t('exam.gridCopyNotice') }}</div>
@@ -76,6 +84,7 @@ function remove() {
 }
 .exam-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   margin-top: 8px;
 }

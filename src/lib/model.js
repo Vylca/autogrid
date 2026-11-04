@@ -74,7 +74,8 @@ export function presetLevels(presetId) {
 }
 
 // categoryNames: null or [] for a grid without categories.
-export function newGrid({ name, type, presetId, categoryNames = null }) {
+// roleNames: group work, each role is graded as its own grid.
+export function newGrid({ name, type, presetId, categoryNames = null, roleNames = null }) {
   const now = new Date().toISOString();
   const levels = presetLevels(presetId);
   const grid = {
@@ -85,6 +86,7 @@ export function newGrid({ name, type, presetId, categoryNames = null }) {
     target: 20,
     presetId: presetId || 'empty',
     useCategories: false,
+    groupWork: false,
     rowImportance: false,
     cellOverride: false,
     categoryComments: false,
@@ -96,10 +98,13 @@ export function newGrid({ name, type, presetId, categoryNames = null }) {
     updatedAt: now,
   };
   if (grid.type === 'competences') {
-    const names = (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
+    const roles = (roleNames || []).map((n) => String(n).trim()).filter(Boolean);
+    const names = roles.length ? roles : (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
+    grid.groupWork = roles.length > 0;
     grid.useCategories = names.length > 0;
     grid.categories = (names.length ? names : ['']).map((n) => {
       const cat = newCategory(n);
+      if (grid.groupWork) cat.count = 1;
       cat.rows = levels.map((lvl) => newRow(lvl));
       return cat;
     });
@@ -180,6 +185,7 @@ export function newExam({ name, date, classId, grid }) {
     sourceGridId: grid.id,
     grid: copy,
     results: {},
+    groups: [],
     createdAt: new Date().toISOString(),
   };
 }
