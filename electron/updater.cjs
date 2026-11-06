@@ -137,6 +137,7 @@ function installUpdate() {
       `export AUTOGRID_APPS_DIR=${q(info.appsDir)}`,
       `curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash -s -- ${force}`,
       'echo "install exit $?"',
+      'unset AUTOGRID_FAKE_VERSION AUTOGRID_UPDATE_SELFTEST AUTOGRID_UPDATE_FORCE',
       `open ${q(path.join(info.appsDir, 'AutoGrid.app'))}`,
     );
   }
