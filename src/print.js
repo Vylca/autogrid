@@ -49,6 +49,19 @@ async function layout(job) {
   const pageH = ((landscape ? 210 : 297) - 2 * MARGIN_MM - 3) * MM;
   const cutH = CUT_MM * MM;
 
+  // Flowing document (class summary): pages break naturally, table headers repeat.
+  if (job.layout === 'flow') {
+    for (const html of job.blocks) {
+      const el = document.createElement('div');
+      el.className = 'flow';
+      el.innerHTML = html;
+      root.appendChild(el);
+    }
+    await document.fonts.ready;
+    await frame();
+    return { pages: 0 };
+  }
+
   const measure = document.createElement('div');
   measure.className = 'measure';
   measure.style.width = `${pageW}px`;

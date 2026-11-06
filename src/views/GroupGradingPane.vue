@@ -4,7 +4,8 @@ import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { emptyResult } from '../lib/model.js';
 import { scaleInfo, usesRoles } from '../lib/bareme.js';
-import { itemScore, formatNumber } from '../lib/scoring.js';
+import { itemScore, formatNumber, studentAcquisition } from '../lib/scoring.js';
+import AcqBadge from '../components/AcqBadge.vue';
 import { groupMembers, roleMap, examScore, examAverage, rolesOf } from '../lib/groups.js';
 import Icon from '../components/Icon.vue';
 import AcqPicker from '../components/AcqPicker.vue';
@@ -25,6 +26,13 @@ const map = computed(() => roleMap(props.exam));
 const scores = computed(() => {
   const out = {};
   for (const g of groups.value) for (const m of g.members) out[m.studentId] = examScore(props.exam, m.studentId, map.value);
+  return out;
+});
+const acqs = computed(() => {
+  const out = {};
+  for (const g of groups.value) {
+    for (const m of g.members) out[m.studentId] = studentAcquisition(grid.value, props.exam.results[m.studentId], m.role.id);
+  }
   return out;
 });
 const average = computed(() => examAverage(props.exam, Object.keys(map.value)));
@@ -62,7 +70,7 @@ const allRows = computed(() => grid.value.categories.flatMap((c) => c.rows));
 const catStarts = computed(() => {
   const out = {};
   if (withRoles.value || !grid.value.useCategories) return out;
-  for (const c of grid.value.categories) if (c.rows[0]) out[c.rows[0].id] = c.name || t('common.untitled');
+  for (const c of grid.value.categories) if (c.rows[0]) out[c.rows[0].id] = { id: c.id, name: c.name || t('common.untitled') };
   return out;
 });
 
@@ -272,7 +280,10 @@ function setRowComment(id, rowId, value) {
             <header class="gsheet-head">
               <div class="gs-who">
                 <div class="gs-name"><strong>{{ byId[m.studentId].lastName }}</strong> {{ byId[m.studentId].firstName }}</div>
-                <span v-if="withRoles" class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
+                <div class="gs-tags">
+                  <span v-if="withRoles" class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
+                  <AcqBadge compact :acq="acqs[m.studentId]?.overall" />
+                </div>
               </div>
               <div class="mini-score" :class="'st-' + memberStatus(m.studentId)">
                 <strong>{{ scoreText(scores[m.studentId]) || '–' }}</strong>
@@ -280,7 +291,10 @@ function setRowComment(id, rowId, value) {
               </div>
             </header>
             <template v-for="(row, ri) in rowsOf(m)" :key="row.id">
-            <div v-if="catStarts[row.id]" class="scat">{{ catStarts[row.id] }}</div>
+            <div v-if="catStarts[row.id]" class="scat">
+              <span>{{ catStarts[row.id].name }}</span>
+              <AcqBadge compact :acq="acqs[m.studentId]?.byCategory[catStarts[row.id].id]" />
+            </div>
             <div
               class="sline"
               :class="{ rfocus: offset + i === focusSheet && ri === focusRow }"
@@ -552,7 +566,21 @@ function setRowComment(id, rowId, value) {
 .mini-score.st-complete {
   border-color: var(--ink);
 }
+.gs-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 3px;
+}
+.gs-tags .role-tag {
+  margin-top: 0;
+}
 .scat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
   background: var(--paper);
   border-bottom: 1px solid var(--rule);

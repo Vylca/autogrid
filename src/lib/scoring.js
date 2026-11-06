@@ -125,3 +125,53 @@ export function formatNumber(value, lang, maxDecimals = 2) {
     minimumFractionDigits: 0,
   }).format(value);
 }
+
+// ---- Acquisition average (skills grids) -----------------------------------------
+// Average of the color levels, weighted by each row's points so it follows the
+// same barème as the mark. "Non rendu" counts as the lowest level, absent and
+// exempt rows are left out. value is on the 1 to 6 scale, code is its nearest level.
+
+function averageOf(pairs) {
+  let w = 0;
+  let sum = 0;
+  for (const [steps, weight] of pairs) {
+    w += weight;
+    sum += steps * weight;
+  }
+  if (!pairs.length) return null;
+  // Rows worth 0 points still count, equally.
+  const avg = w > 0 ? sum / w : pairs.reduce((a, [s]) => a + s, 0) / pairs.length;
+  return { value: avg + 1, code: String(Math.floor(avg + 0.5) + 1), count: pairs.length };
+}
+
+export function acquisitionOf(items, marks) {
+  const pairs = [];
+  for (const item of items) {
+    const m = marks?.[item.id];
+    if (m === 'R') pairs.push([0, item.max]);
+    else if (/^[1-6]$/.test(m || '')) pairs.push([Number(m) - 1, item.max]);
+  }
+  return averageOf(pairs);
+}
+
+// { overall, byCategory: { [categoryId]: average | null } } or null for level grids.
+export function studentAcquisition(grid, result, roleId = undefined) {
+  if (grid.type === 'paliers') return null;
+  const info = scaleInfo(grid);
+  const items = gridItems(grid, info, usesRoles(grid) ? roleId : undefined);
+  const marks = result?.marks || {};
+  const byCategory = {};
+  for (const cat of categoriesOf(grid)) {
+    const catItems = items.filter((it) => it.category.id === cat.id);
+    if (catItems.length) byCategory[cat.id] = acquisitionOf(catItems, marks);
+  }
+  return { overall: acquisitionOf(items, marks), byCategory };
+}
+
+// Average of several averages (class average), on the 1 to 6 scale.
+export function meanAcquisition(list) {
+  const vals = list.filter((a) => a && Number.isFinite(a.value)).map((a) => a.value - 1);
+  if (!vals.length) return null;
+  const avg = vals.reduce((x, y) => x + y, 0) / vals.length;
+  return { value: avg + 1, code: String(Math.floor(avg + 0.5) + 1), count: vals.length };
+}

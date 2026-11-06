@@ -1,4 +1,5 @@
 import { renderGridBlock } from './printRender.js';
+import { renderSummary } from './printSummary.js';
 import { roleMap, rolesOf } from './groups.js';
 import { usesRoles } from './bareme.js';
 import { sortStudents } from './model.js';
@@ -41,7 +42,15 @@ export async function exportExamPdf(exam, cls, opts) {
     outputDir: opts.outputDir,
   };
   let req;
-  if (opts.layout === 'perStudent') {
+  if (opts.layout === 'summary') {
+    req = {
+      ...base,
+      kind: 'single',
+      layout: 'flow',
+      defaultName: `${exam.name || t('common.untitled')} - ${cls.name} - ${t('export.summary')}`,
+      documents: [{ blocks: [renderSummary({ exam, cls, students, lang: l })] }],
+    };
+  } else if (opts.layout === 'perStudent') {
     req = {
       ...base,
       kind: 'perStudent',

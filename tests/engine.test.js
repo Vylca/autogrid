@@ -390,3 +390,28 @@ test('moving between slots swaps students when roles allow', () => {
   assert.equal(res.ok, false);
   assert.deepEqual([h.slots[inter.id][0], k.slots[monstre.id][0]], ['x', 'y']);
 });
+
+import { studentAcquisition, acquisitionOf, meanAcquisition } from '../src/lib/scoring.js';
+
+test('acquisition average: weighted by points, per category, R counts as lowest', () => {
+  const g = skills([{ name: 'Grammaire', imp: 4, rows: [0, 0] }, { name: 'Lexique', rows: [0, 0] }]);
+  const marks = { c0r0: '6', c0r1: '6', c1r0: '2', c1r1: 'R' };
+  const a = studentAcquisition(g, { marks });
+  assert.equal(a.byCategory.c0.code, '6');
+  assert.equal(a.byCategory.c0.value, 6);
+  // Lexique: steps 1 and 0, weighted by the points of each row (6.5 pts split 3.5 / 3).
+  const li = scaleInfo(g);
+  assert.ok(Math.abs(a.byCategory.c1.value - (1 + li.rowMax.c1r0 / (li.rowMax.c1r0 + li.rowMax.c1r1))) < 1e-9);
+  assert.equal(a.byCategory.c1.code, '2');
+  // Whole sheet: Grammaire weighs twice as much.
+  const info = scaleInfo(g);
+  const w = (id) => info.rowMax[id];
+  const expected = (5 * w('c0r0') + 5 * w('c0r1') + 1 * w('c1r0')) / (w('c0r0') + w('c0r1') + w('c1r0') + w('c1r1')) + 1;
+  assert.ok(Math.abs(a.overall.value - expected) < 1e-9);
+  assert.equal(a.overall.code, String(Math.floor(expected - 1 + 0.5) + 1));
+  // Absent and exempt rows are left out, nothing graded gives null.
+  assert.equal(studentAcquisition(g, { marks: { c0r0: 'A', c0r1: 'D' } }).overall, null);
+  assert.equal(acquisitionOf([], {}), null);
+  assert.equal(meanAcquisition([{ value: 6 }, { value: 4 }, null]).code, '5');
+  assert.equal(studentAcquisition(newGrid({ name: 'p', type: 'paliers', presetId: '3e' }), { marks: {} }), null);
+});

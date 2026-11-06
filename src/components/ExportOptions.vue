@@ -2,7 +2,7 @@
 import { t } from '../lib/i18n.js';
 import Icon from './Icon.vue';
 
-const props = defineProps({ options: Object, allowPerStudent: Boolean, blank: Boolean });
+const props = defineProps({ options: Object, allowPerStudent: Boolean, allowSummary: Boolean, blank: Boolean });
 </script>
 
 <template>
@@ -22,6 +22,13 @@ const props = defineProps({ options: Object, allowPerStudent: Boolean, blank: Bo
           <div>
             <strong>{{ t('export.packed') }}</strong>
             <small>{{ props.blank ? t('export.packedBlankHint') : t('export.packedHint') }}</small>
+          </div>
+        </label>
+        <label v-if="props.allowSummary" class="choice" :class="{ on: props.options.layout === 'summary' }">
+          <input v-model="props.options.layout" type="radio" value="summary" />
+          <div>
+            <strong>{{ t('export.summary') }}</strong>
+            <small>{{ t('export.summaryHint') }}</small>
           </div>
         </label>
         <label v-if="props.allowPerStudent" class="choice" :class="{ on: props.options.layout === 'perStudent' }">

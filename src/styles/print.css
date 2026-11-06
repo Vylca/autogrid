@@ -366,3 +366,145 @@ body.bw .chk {
   color: #333;
   text-align: right;
 }
+
+/* Average acquisition */
+td.acq.avg .acq-val {
+  display: block;
+  margin-top: 0.4mm;
+  font-size: 7pt;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+td.acq.small {
+  font-size: 7.4pt;
+  padding-top: 0.8mm;
+  padding-bottom: 0.8mm;
+}
+
+td.acq.small .meter {
+  margin-top: 0.4mm;
+}
+
+.acq-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1mm 2.5mm;
+  border: 1.4px solid #111;
+  border-radius: 1.5mm;
+  background: var(--c);
+  color: var(--tc);
+  line-height: 1.15;
+}
+
+.acq-head .ah-t {
+  font-size: 6.5pt;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.acq-head .ah-l {
+  font-size: 8.5pt;
+  font-weight: 800;
+}
+
+body.bw .acq-head {
+  background: #fff;
+  color: #111;
+}
+
+/* Class summary (relevé global) */
+.summary .g-head {
+  margin-bottom: 3mm;
+}
+
+table.sum {
+  table-layout: auto;
+}
+
+table.sum th {
+  vertical-align: bottom;
+  text-align: center;
+}
+
+table.sum th small {
+  font-weight: 500;
+  color: #444;
+}
+
+table.sum th.name,
+table.sum td.name {
+  text-align: left;
+  white-space: nowrap;
+}
+
+table.sum td {
+  vertical-align: middle;
+}
+
+table.sum td.num {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+table.sum td.mark {
+  font-size: 10pt;
+}
+
+table.sum td.role {
+  font-weight: 600;
+}
+
+table.sum td.acq.sum {
+  min-width: 24mm;
+  padding: 0.8mm 1.2mm;
+  font-size: 7.4pt;
+}
+
+table.sum td.acq.sum .meter {
+  display: none;
+}
+
+body.bw table.sum td.acq.sum .meter {
+  display: inline-flex;
+}
+
+table.sum tr:nth-child(even) td:not(.acq) {
+  background: #f6f7fa;
+}
+
+body.bw table.sum tr:nth-child(even) td:not(.acq) {
+  background: #fff;
+}
+
+table.sum tr.avg td:not(.acq) {
+  border-top: 1.6px solid #111;
+  font-weight: 800;
+  background: #e9edf6;
+}
+
+body.bw table.sum tr.avg td:not(.acq) {
+  background: #fff;
+}
+
+.muted {
+  color: #777;
+  font-weight: 500;
+}
+
+.star {
+  color: #777;
+  margin-left: 0.5mm;
+}
+
+.sum-note {
+  margin-top: 1.5mm;
+  font-size: 7.5pt;
+  color: #444;
+}
+
+thead {
+  display: table-header-group;
+}

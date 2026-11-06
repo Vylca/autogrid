@@ -1,6 +1,6 @@
 // Builds the HTML of one printable grid block. The print window paginates the blocks.
 import { ACQ_LEVELS, SPECIAL_MARKS, acqLevel } from './model.js';
-import { gridItems, scoreStudent, itemScore, formatNumber } from './scoring.js';
+import { gridItems, scoreStudent, itemScore, formatNumber, studentAcquisition } from './scoring.js';
 import { scaleInfo, cellPoints, criterionMax, usesRoles } from './bareme.js';
 import { tFor, formatDateFor } from './i18n.js';
 
@@ -32,7 +32,22 @@ function specialLabel(lang, code) {
   return sp ? tFor(lang, `acq.${sp.key}`) : '';
 }
 
-function header({ exam, grid, student, score, lang, blank, className, info }) {
+// Average acquisition as a table cell: colored in color mode, label and dots in black and white.
+export function acqCell(acq, lang, cls = '') {
+  const lvl = acq ? acqLevel(acq.code) : null;
+  if (!lvl) return `<td class="acq ${cls}"></td>`;
+  const label = esc(tFor(lang, `acq.${lvl.key}`));
+  const val = esc(formatNumber(acq.value, lang, 1));
+  return `<td class="acq avg ${cls}" style="--c:${lvl.color};--tc:${lvl.text}"><span class="acq-label">${label}</span>${dots(lvl.code)}<span class="acq-val">${val}</span></td>`;
+}
+
+function acqHead(acq, lang) {
+  const lvl = acq ? acqLevel(acq.code) : null;
+  if (!lvl) return '';
+  return `<div class="acq-head" style="--c:${lvl.color};--tc:${lvl.text}"><span class="ah-t">${esc(tFor(lang, 'acq.average'))}</span><span class="ah-l">${esc(tFor(lang, `acq.${lvl.key}`))}</span>${dots(lvl.code)}</div>`;
+}
+
+function header({ exam, grid, student, score, lang, blank, className, info, acq }) {
   const title = exam ? exam.name : grid.name;
   const metaParts = [];
   if (className) metaParts.push(`<span>${esc(className)}</span>`);
@@ -58,11 +73,11 @@ function header({ exam, grid, student, score, lang, blank, className, info }) {
       <div class="g-title">${esc(title || tFor(lang, 'common.untitled'))}</div>
       ${metaParts.length ? `<div class="g-meta">${metaParts.join('')}</div>` : ''}
     </div>
-    <div class="g-right">${who}${scoreHtml}</div>
+    <div class="g-right">${who}${blank ? '' : acqHead(acq?.overall, lang)}${scoreHtml}</div>
   </div>`;
 }
 
-function competencesTable({ grid, result, lang, blank, info, roleId }) {
+function competencesTable({ grid, result, lang, blank, info, roleId, acq }) {
   const marks = result?.marks || {};
   const comments = result?.comments || {};
   const items = gridItems(grid, info);
@@ -87,7 +102,7 @@ function competencesTable({ grid, result, lang, blank, info, roleId }) {
         }
       }
       const total = !blank && any ? `${esc(formatNumber(earned, lang))} / ${esc(formatNumber(max, lang))}` : `<span class="pblank"></span> / ${esc(formatNumber(max, lang))}`;
-      rows += `<tr class="cat-row"><td colspan="3">${esc(cat.name || tFor(lang, 'common.untitled'))}</td><td class="pts">${total}</td></tr>`;
+      rows += `<tr class="cat-row"><td colspan="2">${esc(cat.name || tFor(lang, 'common.untitled'))}</td>${blank ? '<td></td>' : acqCell(acq?.byCategory[cat.id], lang, 'small')}<td class="pts">${total}</td></tr>`;
     }
     for (const row of cat.rows) {
       const mark = blank ? undefined : marks[row.id];
@@ -188,9 +203,10 @@ function paliersTable({ grid, result, lang, blank, info }) {
 export function renderGridBlock({ exam = null, grid, student = null, result = null, lang = 'fr', blank = false, className = '', roleId = undefined }) {
   const info = scaleInfo(grid);
   const score = student && !blank ? scoreStudent(grid, result, roleId) : null;
+  const acq = student && !blank ? studentAcquisition(grid, result, roleId) : null;
   let html = `<div class="g">`;
-  html += header({ exam, grid, student, score, lang, blank, className, info });
-  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank, info }) : competencesTable({ grid, result, lang, blank, info, roleId });
+  html += header({ exam, grid, student, score, lang, blank, className, info, acq });
+  html += grid.type === 'paliers' ? paliersTable({ grid, result, lang, blank, info }) : competencesTable({ grid, result, lang, blank, info, roleId, acq });
   if (info.total !== info.target) {
     const line =
       score && score.internalScore !== null

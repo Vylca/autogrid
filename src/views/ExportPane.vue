@@ -76,7 +76,7 @@ async function run() {
       </div>
     </section>
     <section class="panel opts">
-      <ExportOptions :options="options" allow-per-student />
+      <ExportOptions :options="options" allow-per-student allow-summary />
       <div class="go">
         <button class="btn primary" :disabled="busy || selected.size === 0" @click="run">
           <Icon name="download" /> {{ busy ? t('export.working') : t('export.run') }}

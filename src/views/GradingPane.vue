@@ -3,7 +3,8 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { sortStudents, emptyResult, SPECIAL_MARKS } from '../lib/model.js';
-import { gridItems, scoreStudent, itemScore, classAverage, formatNumber } from '../lib/scoring.js';
+import { gridItems, scoreStudent, itemScore, classAverage, formatNumber, studentAcquisition } from '../lib/scoring.js';
+import AcqBadge from '../components/AcqBadge.vue';
 import { cellPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
 import Icon from '../components/Icon.vue';
 import AcqPicker from '../components/AcqPicker.vue';
@@ -31,6 +32,7 @@ const scores = computed(() => {
   return out;
 });
 const currentScore = computed(() => scores.value[currentId.value] || null);
+const acq = computed(() => studentAcquisition(grid.value, result.value));
 const average = computed(() => classAverage(grid.value, props.exam.results, students.value.map((s) => s.id)));
 
 const groups = computed(() => {
@@ -265,6 +267,10 @@ const studentComment = computed({
           <button class="btn small" @click="toggleAbsent">{{ t('grading.markAbsent') }}</button>
           <button class="btn small ghost" @click="clearAll">{{ t('grading.clear') }}</button>
         </div>
+        <div v-if="acq" class="acq-box">
+          <span class="label">{{ t('acq.average') }}</span>
+          <AcqBadge :acq="acq.overall" />
+        </div>
         <div class="score-box" :class="currentScore?.status">
           <span class="big">{{ scoreText(currentScore) || '–' }}</span>
           <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.target, lang) }}</span>
@@ -280,7 +286,10 @@ const studentComment = computed({
         <section v-for="cat in grid.categories" :key="cat.id" class="cat-block">
           <header v-if="grid.useCategories" class="cat-title">
             <h3>{{ cat.name || t('common.untitled') }}</h3>
-            <span class="cat-total">{{ categoryPoints(cat) }}</span>
+            <span class="cat-right">
+              <AcqBadge compact :acq="acq?.byCategory[cat.id]" />
+              <span class="cat-total">{{ categoryPoints(cat) }}</span>
+            </span>
           </header>
           <div
             v-for="row in cat.rows"
@@ -590,6 +599,23 @@ const studentComment = computed({
 .cat-title h3 {
   font-size: 16px;
   color: var(--accent-ink);
+}
+.cat-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.acq-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.acq-box .label {
+  font-size: 12px;
 }
 .cat-total {
   font-weight: 800;
