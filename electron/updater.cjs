@@ -47,21 +47,60 @@ function installInfo() {
   return null;
 }
 
+// Latest version from the release page redirect (same as install.sh, no API
+// rate limit), with the GitHub API as a fallback.
+// The release page redirects to the latest tag. Electron's fetch hides the final
+// address, so the redirect is read directly and the request stopped there.
+function latestFromPage() {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url: `https://github.com/${REPO}/releases/latest`, method: 'HEAD', redirect: 'manual' });
+    const timer = setTimeout(() => {
+      req.abort();
+      reject(new Error('timeout'));
+    }, 15000);
+    req.on('redirect', (_status, _method, redirectUrl) => {
+      clearTimeout(timer);
+      req.abort();
+      const tag = String(redirectUrl).split('/').pop();
+      if (/^v\d/.test(tag)) resolve(tag.slice(1));
+      else reject(new Error('no release'));
+    });
+    req.on('response', (res) => {
+      clearTimeout(timer);
+      reject(new Error(`HTTP ${res.statusCode}`));
+    });
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    req.end();
+  });
+}
+
+async function latestVersion() {
+  try {
+    return { version: await latestFromPage(), source: 'page' };
+  } catch {
+    // fall back to the API below
+  }
+  const res = await net.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AutoGrid' },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return { version: String(data.tag_name || '').replace(/^v/, ''), source: 'api' };
+}
+
 async function checkUpdate() {
   const current = currentVersion();
   try {
-    const res = await net.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AutoGrid' },
-    });
-    if (!res.ok) return { current, error: `HTTP ${res.status}` };
-    const data = await res.json();
-    const latest = String(data.tag_name || '').replace(/^v/, '');
+    const { version: latest, source } = await latestVersion();
     return {
       current,
       latest,
+      source,
       available: !!latest && compareVersions(latest, current) > 0,
       canInstall: !!installInfo(),
-      notes: String(data.body || '').slice(0, 2000),
     };
   } catch (err) {
     return { current, error: String(err && err.message ? err.message : err) };
