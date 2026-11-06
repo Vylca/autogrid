@@ -193,6 +193,37 @@ export async function runSelftest(info) {
   await shot('03-grading-paliers');
   navigate('exam', d.eg.id, { tab: 'groups' });
   await shot('10-groups');
+  // Drag and drop: a student already placed joins a new group, then that group moves to position 2.
+  const drag = async (src, dst) => {
+    const dt = new DataTransfer();
+    src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    await nextTick();
+    dst.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    dst.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    src.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+    await wait(120);
+  };
+  document.querySelector('.g-top .btn')?.click();
+  await wait(150);
+  const interId = d.eg.grid.categories[0].id;
+  const inter = d.c3.students.find((st) => roleMap(d.eg)[st.id]?.roleId === interId);
+  const poolChip = [...document.querySelectorAll('.pool .chip.placed')].find((el) => el.textContent.includes(inter.lastName));
+  const cards = document.querySelectorAll('.g-card');
+  const lastCard = cards[cards.length - 1];
+  await drag(poolChip, lastCard.querySelectorAll('.drop')[0]);
+  const monstre = d.c3.students.find((st) => roleMap(d.eg)[st.id]?.roleId !== interId && roleMap(d.eg)[st.id]);
+  const poolChip2 = [...document.querySelectorAll('.pool .chip.placed')].find((el) => el.textContent.includes(monstre.lastName));
+  await drag(poolChip2, document.querySelectorAll('.g-card')[cards.length - 1].querySelectorAll('.drop')[0]);
+  const lastHeader = document.querySelectorAll('.g-card')[cards.length - 1].querySelector('header');
+  await drag(lastHeader, document.querySelectorAll('.g-card')[1]);
+  await shot('10b-groups-dragged');
+  await window.api.selftestLog('dnd', {
+    groups: d.eg.groups.map((g) => Object.fromEntries(Object.entries(g.slots).map(([r, ids]) => [r === interId ? 'inter' : 'monstre', ids.map((id) => d.c3.students.find((st) => st.id === id)?.firstName || null)]))),
+    interName: inter.firstName,
+    monstreName: monstre.firstName,
+    toasts: store.toasts.map((x) => x.message),
+  });
+  store.toasts.splice(0);
   navigate('exam', d.eg.id, { tab: 'grading' });
   await shot('11-group-grading');
   d.eg.sheetsVisible = 1;
@@ -276,6 +307,10 @@ export async function runSelftest(info) {
   await shot('09-grading-en');
   await exportExamPdf(d.e5, d.c5, { studentIds: ids5.slice(0, 2), layout: 'perPage', color: true, orientation: 'portrait', outputPath: `${dir}/comp-en.pdf` });
   store.data.settings.lang = 'fr';
+  store.update = { current: '0.5.0', latest: '0.5.1', available: true, canInstall: true };
+  navigate('exams');
+  store.toasts.splice(0);
+  await shot('14-update');
   store.toasts.splice(0);
   for (const [w, h] of [[1000, 680], [760, 560]]) {
     await window.api.selftestResize(w, h);

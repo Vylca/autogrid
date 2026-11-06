@@ -160,6 +160,24 @@ textarea {
   color: var(--ink-3);
 }
 
+.update {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 13px;
+}
+
+.version {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
 .main {
   overflow: auto;
   min-width: 0;
@@ -886,8 +904,17 @@ textarea.input {
     padding: 0;
   }
   .nav-label,
-  .long {
+  .long,
+  .update-text,
+  .update-label {
     display: none;
+  }
+  .update {
+    padding: 4px;
+    align-items: center;
+  }
+  .update .btn {
+    padding: 6px;
   }
   .short {
     display: inline;

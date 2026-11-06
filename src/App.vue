@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch, nextTick } from 'vue';
-import { store, navigate } from './lib/store.js';
+import { store, navigate, flushSave, toast } from './lib/store.js';
 import { t, lang } from './lib/i18n.js';
 import { ACQ_LEVELS } from './lib/model.js';
 import Icon from './components/Icon.vue';
@@ -32,6 +32,20 @@ watch(
   () => nextTick(() => mainEl.value && (mainEl.value.scrollTop = 0)),
 );
 
+const version = ref('');
+const installing = ref(false);
+
+async function runUpdate() {
+  if (!window.confirm(t('update.confirm', { v: store.update.latest }))) return;
+  flushSave();
+  installing.value = true;
+  const res = await window.api.installUpdate();
+  if (!res?.ok) {
+    installing.value = false;
+    toast(t('update.failed'), { kind: 'error' });
+  }
+}
+
 function setLang(l) {
   store.data.settings.lang = l;
   document.documentElement.lang = l;
@@ -39,8 +53,15 @@ function setLang(l) {
 
 onMounted(async () => {
   document.documentElement.lang = lang.value;
+  version.value = (await window.api.appInfo?.())?.version || '';
   const info = await window.api.selftestInfo?.();
   if (info) runSelftest(info);
+  else {
+    setTimeout(async () => {
+      const res = await window.api.checkUpdate?.();
+      if (res && !res.error) store.update = res;
+    }, 2500);
+  }
 });
 </script>
 
@@ -65,10 +86,18 @@ onMounted(async () => {
         </button>
       </nav>
       <div class="sidebar-foot">
+        <div v-if="store.update?.available" class="update">
+          <strong class="update-text">{{ t('update.available', { v: store.update.latest }) }}</strong>
+          <button v-if="store.update.canInstall" class="btn small primary" :disabled="installing" :title="t('update.button')" @click="runUpdate">
+            <Icon name="download" :size="15" /> <span class="update-label">{{ installing ? t('update.installing') : t('update.button') }}</span>
+          </button>
+          <p v-else class="hint update-text">{{ t('update.manual') }}</p>
+        </div>
         <div class="segmented" role="group" :aria-label="t('nav.language')">
           <button :class="{ on: lang === 'fr' }" title="Français" @click="setLang('fr')"><span class="long">Français</span><span class="short">FR</span></button>
           <button :class="{ on: lang === 'en' }" title="English" @click="setLang('en')"><span class="long">English</span><span class="short">EN</span></button>
         </div>
+        <span v-if="version" class="version">v{{ version }}</span>
       </div>
     </aside>
     <main ref="mainEl" class="main">

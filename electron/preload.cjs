@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   backupData: (tag) => ipcRenderer.invoke('data:backup', tag),
   saveDataSync: (json) => ipcRenderer.sendSync('data:saveSync', json),
   appInfo: () => ipcRenderer.invoke('app:info'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
   openCsv: () => ipcRenderer.invoke('csv:open'),
   exportPdf: (req) => ipcRenderer.invoke('pdf:export', req),
   openPath: (p) => ipcRenderer.invoke('shell:open', p),

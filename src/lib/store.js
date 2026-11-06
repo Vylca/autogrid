@@ -8,6 +8,8 @@ export const store = reactive({
   data: emptyData(),
   route: { name: 'exams', id: null, tab: null },
   toasts: [],
+  // { current, latest, available, canInstall } once GitHub has answered.
+  update: null,
 });
 
 function migrate(d) {

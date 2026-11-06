@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { checkUpdate, installUpdate } = require('./updater.cjs');
 
 if (process.env.AUTOGRID_USERDATA) app.setPath('userData', process.env.AUTOGRID_USERDATA);
 
@@ -67,7 +68,9 @@ ipcMain.on('data:saveSync', (e, json) => {
   }
 });
 
-ipcMain.handle('app:info', () => ({ version: app.getVersion(), dataPath: dataFile() }));
+ipcMain.handle('app:info', () => ({ version: process.env.AUTOGRID_FAKE_VERSION || app.getVersion(), dataPath: dataFile() }));
+ipcMain.handle('update:check', () => (SELFTEST_DIR ? null : checkUpdate()));
+ipcMain.handle('update:install', () => installUpdate());
 
 // ---- CSV import -------------------------------------------------------------
 
@@ -275,9 +278,15 @@ if (!gotLock) {
       mainWindow.focus();
     }
   });
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     buildMenu();
     createMainWindow();
+    // Test hook: check, report, and install without the interface.
+    if (process.env.AUTOGRID_UPDATE_SELFTEST) {
+      const res = await checkUpdate();
+      fs.writeFileSync(process.env.AUTOGRID_UPDATE_SELFTEST, JSON.stringify(res, null, 2));
+      if (res.available && res.canInstall) installUpdate();
+    }
   });
   app.on('window-all-closed', () => app.quit());
 }

@@ -3,6 +3,7 @@ const props = defineProps({ name: String, size: { type: Number, default: 18 } })
 const paths = {
   plus: 'M12 5v14M5 12h14',
   minus: 'M5 12h14',
+  grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',
   alert: 'M12 4l9 16H3zM12 10v4M12 17.5h.01',
   x: 'M6 6l12 12M18 6L6 18',

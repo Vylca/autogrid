@@ -260,7 +260,7 @@ test('windows-1252 decoding', () => {
 
 // ---- Group work -------------------------------------------------------------------------
 
-import { roleMap, examScore, examAverage, fillRandomly, assignStudent, newGroup, groupSlots, groupSize } from '../src/lib/groups.js';
+import { roleMap, examScore, examAverage, fillRandomly, assignStudent, newGroup, groupSlots, groupSize, placeStudent, moveStudent, addToGroup, moveGroup, groupNumbers, clearSlot } from '../src/lib/groups.js';
 
 function interviewExam() {
   const g = newGrid({ name: 'Interview', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'] });
@@ -335,4 +335,58 @@ test('0.4 group grids keep their roles', () => {
   delete g.useRoles;
   migrateGrid(g);
   assert.equal(g.useRoles, true);
+});
+
+test('a student can be in several groups with one sheet, and one role', () => {
+  const e = interviewExam();
+  const [inter, monstre] = e.grid.categories;
+  const g1 = newGroup(e.grid);
+  const g2 = newGroup(e.grid);
+  e.groups.push(g1, g2);
+  assert.deepEqual(placeStudent(e, g1, inter.id, 0, 'ana'), { ok: true });
+  assert.deepEqual(placeStudent(e, g2, inter.id, 0, 'ana'), { ok: true });
+  assert.deepEqual(groupNumbers(e), { ana: [1, 2] });
+  // Same role everywhere.
+  assert.deepEqual(placeStudent(e, g2, monstre.id, 0, 'ana'), { ok: false, reason: 'role', roleId: inter.id });
+  // Marks are shared: one result per student.
+  e.results.ana = { marks: Object.fromEntries(inter.rows.map((r) => [r.id, '6'])), comments: {}, comment: '' };
+  assert.equal(examScore(e, 'ana').score, 20);
+  // Only once per group: placing again in the same group moves them within it.
+  e.grid.categories[0].count = 2;
+  placeStudent(e, g1, inter.id, 1, 'ana');
+  assert.deepEqual(g1.slots[inter.id], [null, 'ana']);
+});
+
+test('moving between slots swaps students when roles allow', () => {
+  const e = newExam({ name: 'e', classId: 'c', grid: newGrid({ name: 'd', type: 'competences', presetId: '3e', groupWork: true, groupSize: 2 }) });
+  const g1 = newGroup(e.grid);
+  const g2 = newGroup(e.grid);
+  e.groups.push(g1, g2);
+  placeStudent(e, g1, 'member', 0, 'a');
+  placeStudent(e, g2, 'member', 0, 'b');
+  assert.deepEqual(moveStudent(e, { groupId: g1.id, roleId: 'member', index: 0 }, { groupId: g2.id, roleId: 'member', index: 0 }), { ok: true });
+  assert.deepEqual([g1.slots.member, g2.slots.member], [['b', null], ['a', null]]);
+  assert.deepEqual(addToGroup(e, g1, 'c'), { ok: true });
+  assert.deepEqual(g1.slots.member, ['b', 'c']);
+  assert.deepEqual(addToGroup(e, g1, 'd'), { ok: false, reason: 'full', roleId: null });
+  clearSlot(e, { groupId: g1.id, roleId: 'member', index: 1 });
+  assert.deepEqual(g1.slots.member, ['b', null]);
+  moveGroup(e, 1, 0);
+  assert.equal(e.groups[0].id, g2.id);
+  // Swapping across roles is refused and nothing changes.
+  const r = interviewExam();
+  const [inter, monstre] = r.grid.categories;
+  const h = newGroup(r.grid);
+  r.groups.push(h);
+  placeStudent(r, h, inter.id, 0, 'x');
+  // x is also an interviewer in another group, so x cannot become a monster.
+  const h2 = newGroup(r.grid);
+  r.groups.push(h2);
+  placeStudent(r, h2, inter.id, 0, 'x');
+  const k = newGroup(r.grid);
+  r.groups.push(k);
+  placeStudent(r, k, monstre.id, 0, 'y');
+  const res = moveStudent(r, { groupId: k.id, roleId: monstre.id, index: 0 }, { groupId: h.id, roleId: inter.id, index: 0 });
+  assert.equal(res.ok, false);
+  assert.deepEqual([h.slots[inter.id][0], k.slots[monstre.id][0]], ['x', 'y']);
 });

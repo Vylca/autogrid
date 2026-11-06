@@ -79,6 +79,24 @@ jobs:
           ls -la selftest/out
           test "$(ls selftest/out/*.pdf | wc -l)" -ge 6
           test -f selftest/out/01-exams.png
+      - name: Update test on macOS
+        run: |
+          # The app believes it is 0.4.0, finds the latest release, closes,
+          # installs it with install.sh, then reopens.
+          mkdir -p upd
+          cp -R smoke/AutoGrid.app upd/
+          AUTOGRID_FAKE_VERSION=0.4.0 AUTOGRID_UPDATE_FORCE=1 AUTOGRID_UPDATE_SELFTEST="$PWD/upd/check.json" \
+            AUTOGRID_USERDATA="$PWD/upd/data" upd/AutoGrid.app/Contents/MacOS/AutoGrid > upd/app.log 2>&1 &
+          for i in $(seq 1 90); do grep -q "install exit" upd/data/update.log 2>/dev/null && break; sleep 2; done
+          sleep 10
+          cat upd/check.json | grep -v notes || true
+          cat upd/data/update.log || true
+          v=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' upd/AutoGrid.app/Contents/Info.plist)
+          echo "installed version: $v"
+          grep -q "install exit 0" upd/data/update.log
+          pgrep -x AutoGrid && echo "relaunched"
+          pgrep -x AutoGrid >/dev/null
+          pkill -x AutoGrid || true
       - name: Show screenshots in the log
         run: |
           for f in 02-grading-competences 04-grid-competences; do
