@@ -5,6 +5,7 @@ import { store, navigate } from './store.js';
 import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResult } from './model.js';
 import { setCellPoints } from './bareme.js';
 import { exportExamPdf, exportBlankGrid } from './exporter.js';
+import { summaryRows } from './printSummary.js';
 import { scoreStudent } from './scoring.js';
 import { fillRandomly, roleMap, examScore as examScoreOf } from './groups.js';
 
@@ -239,6 +240,7 @@ export async function runSelftest(info) {
   await shot('13c-grid-noroles');
   await window.api.selftestLog('duo', d.c5.students.map((s) => ({ name: s.firstName, ...examScoreOf(d.ed, s.id) })));
   navigate('grid', d.comp.id);
+  d.comp.categories[0].rows[0].inSummary = true;
   await shot('04-grid-competences');
   document.querySelector('.cat-tab:nth-child(2)')?.click();
   await shot('04b-grid-second-tab');
@@ -255,6 +257,13 @@ export async function runSelftest(info) {
   await shot('05b-grid-paliers-cells');
   navigate('exam', d.e5.id, { tab: 'export' });
   await shot('06-export');
+  // Relevé global: tick skills to show on their own.
+  store.data.settings.export.layout = 'summary';
+  d.e5.grid.categories[0].rows[1].inSummary = true;
+  d.e5.grid.categories[1].rows[0].inSummary = true;
+  d.e5.grid.categories[2].rows[0].inSummary = true;
+  await shot('06b-export-summary-rows');
+  store.data.settings.export.layout = 'perPage';
   navigate('classes');
   await shot('07-classes');
   navigate('grids');
@@ -302,7 +311,11 @@ export async function runSelftest(info) {
   await window.api.selftestLog('group', d.c3.students.map((s) => ({ name: s.firstName, ...scoreStudent(d.eg.grid, d.eg.results[s.id], roleMap(d.eg)[s.id]?.roleId) })));
   await exportExamPdf(d.e5, d.c5, { studentIds: ids5, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-comp.pdf` });
   await exportExamPdf(d.e3, d.c3, { studentIds: ids3, layout: 'summary', color: false, orientation: 'portrait', outputPath: `${dir}/summary-pal-bw.pdf` });
+  await exportExamPdf(d.e5, d.c5, { studentIds: ids5, layout: 'summary', color: false, orientation: 'portrait', outputPath: `${dir}/summary-comp-bw.pdf` });
+  d.eg.grid.categories[0].rows[0].inSummary = true;
+  d.eg.grid.categories[1].rows[0].inSummary = true;
   await exportExamPdf(d.eg, d.c3, { studentIds: ids3, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-roles.pdf` });
+  await window.api.selftestLog('summaryRows', { e5: summaryRows(d.e5.grid).map((it) => it.row.level), eg: summaryRows(d.eg.grid).map((it) => it.row.level) });
   await exportBlankGrid(d.comp, { layout: 'packed', color: true, orientation: 'portrait', outputPath: `${dir}/blank-comp-fill.pdf` });
   await exportBlankGrid(d.pal, { layout: 'perPage', color: true, orientation: 'landscape', outputPath: `${dir}/blank-pal.pdf` });
   store.data.settings.lang = 'en';

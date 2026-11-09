@@ -415,3 +415,30 @@ test('acquisition average: weighted by points, per category, R counts as lowest'
   assert.equal(meanAcquisition([{ value: 6 }, { value: 4 }, null]).code, '5');
   assert.equal(studentAcquisition(newGrid({ name: 'p', type: 'paliers', presetId: '3e' }), { marks: {} }), null);
 });
+
+import { summaryRows, rowMark, renderSummary } from '../src/lib/printSummary.js';
+
+test('summary: ticked skills get their own column, per role, with the class average', () => {
+  const g = skills([{ name: 'Grammaire', rows: [0, 0] }, { name: 'Lexique', rows: [0] }]);
+  assert.deepEqual(summaryRows(g), []);
+  g.categories[0].rows[1].inSummary = true;
+  g.categories[1].rows[0].inSummary = true;
+  const info = scaleInfo(g);
+  const rows = summaryRows(g, info);
+  assert.deepEqual(rows.map((it) => it.id), ['c0r1', 'c1r0']);
+  assert.deepEqual(rowMark(g, info, rows[0], { c0r1: '6' }), { kind: 'level', mark: '6', earned: info.rowMax.c0r1, acq: acquisitionOf([rows[0]], { c0r1: '6' }) });
+  assert.equal(rowMark(g, info, rows[0], { c0r1: 'R' }).earned, 0);
+  assert.equal(rowMark(g, info, rows[0], { c0r1: 'A' }).earned, null);
+  assert.equal(rowMark(g, info, rows[0], {}).kind, 'none');
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.results = { a: { marks: { c0r0: '6', c0r1: '6', c1r0: '4' } }, b: { marks: { c0r0: '2', c0r1: '2', c1r0: 'A' } } };
+  const html = renderSummary({ exam: e, cls: { name: '5e A' }, students: [{ id: 'a', lastName: 'A', firstName: 'a' }, { id: 'b', lastName: 'B', firstName: 'b' }], lang: 'fr' });
+  assert.equal((html.match(/<th class="rc/g) || []).length, 2);
+  // Two students and the class average row, each with two skill cells.
+  assert.equal((html.match(/<td class="[^"]*\brc\b/g) || []).length, 6);
+  // Role grids: a skill of another role shows a dash.
+  const r = interviewExam();
+  r.grid.categories[0].rows[0].inSummary = true;
+  const ri = scaleInfo(r.grid);
+  assert.equal(rowMark(r.grid, ri, summaryRows(r.grid, ri)[0], {}, r.grid.categories[1].id).kind, 'other');
+});

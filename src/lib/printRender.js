@@ -19,7 +19,7 @@ function nl2br(s) {
 const CHECK_SVG =
   '<svg class="chk" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
 
-function dots(code) {
+export function dots(code) {
   // Six-step meter readable in black and white.
   const n = Number(code);
   let out = '<span class="meter">';

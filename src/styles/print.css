@@ -499,6 +499,68 @@ body.bw table.sum tr.avg td:not(.acq) {
   margin-left: 0.5mm;
 }
 
+/* Skills shown on their own in the summary */
+table.sum th.rc {
+  max-width: 34mm;
+  min-width: 20mm;
+  font-weight: 600;
+  font-size: 7.4pt;
+  line-height: 1.2;
+}
+
+table.sum th.rc .rc-cat {
+  display: block;
+  font-weight: 800;
+  color: #444;
+}
+
+table.sum th.rc .rc-txt {
+  display: block;
+}
+
+table.sum th.rc small {
+  display: block;
+  margin-top: 0.4mm;
+}
+
+table.sum th.rc.first,
+table.sum td.rc.first {
+  border-left: 1.6px solid #111;
+}
+
+table.sum td.acq.rc .acq-val {
+  display: block;
+  margin-top: 0.3mm;
+  font-size: 7pt;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+table.sum td.acq.rc.special {
+  font-weight: 600;
+}
+
+/* Many columns: smaller text so the table fits */
+table.sum.dense th,
+table.sum.dense td {
+  padding-left: 1mm;
+  padding-right: 1mm;
+}
+
+table.sum.dense td.mark {
+  font-size: 9pt;
+}
+
+table.sum.dense td.acq.sum {
+  min-width: 17mm;
+  font-size: 6.8pt;
+}
+
+table.sum.dense th.rc {
+  min-width: 16mm;
+  font-size: 6.8pt;
+}
+
 .sum-note {
   margin-top: 1.5mm;
   font-size: 7.5pt;

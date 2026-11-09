@@ -130,6 +130,10 @@ function insertDescriptor(row, text) {
         <textarea v-model="row.descriptor" class="input" rows="2" :placeholder="t('grid.descriptor')"></textarea>
         <div class="row-side">
           <div class="row-line">
+            <label class="checkbox in-sum" :title="t('grid.inSummaryHint')">
+              <input v-model="row.inSummary" type="checkbox" />
+              {{ t('grid.inSummary') }}
+            </label>
             <ImportanceStepper v-if="props.grid.rowImportance && !props.locked" v-model="row.importance" />
             <span class="row-pts">
               <Icon v-if="props.info.flagged.has(row.id)" name="alert" :size="15" class="flag" />
@@ -289,6 +293,13 @@ function insertDescriptor(row, text) {
 }
 .flag {
   color: #c77700;
+}
+.in-sum {
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
 }
 .no-rows {
   padding: 14px;

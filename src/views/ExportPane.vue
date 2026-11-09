@@ -44,6 +44,15 @@ function scoreLabel(s) {
   return formatNumber(sc.score, lang.value);
 }
 
+// Relevé global: skills ticked to get their own column.
+const showRows = computed(() => options.layout === 'summary' && props.exam.grid.type === 'competences');
+const rowGroups = computed(() =>
+  props.exam.grid.categories
+    .filter((c) => c.rows.length)
+    .map((c) => ({ id: c.id, name: props.exam.grid.useCategories ? c.name || t('common.untitled') : '', rows: c.rows })),
+);
+const tickedCount = computed(() => rowGroups.value.reduce((n, g) => n + g.rows.filter((r) => r.inSummary).length, 0));
+
 const busy = ref(false);
 async function run() {
   busy.value = true;
@@ -77,6 +86,23 @@ async function run() {
     </section>
     <section class="panel opts">
       <ExportOptions :options="options" allow-per-student allow-summary />
+      <div v-if="showRows" class="sum-rows">
+        <div class="sr-head">
+          <h4>{{ t('export.summaryRows') }}</h4>
+          <span class="hint">{{ t('export.summaryRowsCount', { n: tickedCount }) }}</span>
+        </div>
+        <p class="hint">{{ t('export.summaryRowsHint') }}</p>
+        <div class="sr-list">
+          <div v-for="g in rowGroups" :key="g.id" class="sr-group">
+            <div v-if="g.name" class="sr-cat">{{ g.name }}</div>
+            <label v-for="r in g.rows" :key="r.id" class="checkbox sr-item">
+              <input v-model="r.inSummary" type="checkbox" />
+              <span class="sr-lvl">{{ r.level }}</span>
+              <span class="sr-txt" :class="{ empty: !r.descriptor }">{{ r.descriptor || t('grading.noDescriptor') }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
       <div class="go">
         <button class="btn primary" :disabled="busy || selected.size === 0" @click="run">
           <Icon name="download" /> {{ busy ? t('export.working') : t('export.run') }}
@@ -132,6 +158,66 @@ async function run() {
   font-size: 14px;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
+}
+.sum-rows {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.sr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sr-head h4 {
+  margin: 0;
+  font-size: 15px;
+}
+.sr-list {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 10px -8px 0;
+}
+.sr-cat {
+  padding: 8px 8px 2px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent-ink);
+}
+.sr-item {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 5px;
+}
+.sr-item:hover {
+  background: var(--paper);
+}
+.sr-item input {
+  flex: none;
+  margin-top: 2px;
+}
+.sr-lvl {
+  flex: none;
+  min-width: 30px;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--accent-ink);
+}
+.sr-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sr-txt.empty {
+  color: var(--ink-3);
+  font-style: italic;
 }
 .go {
   margin-top: 22px;
