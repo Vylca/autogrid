@@ -69,7 +69,7 @@ function remove() {
     <ExportPane v-else-if="tab === 'export'" :exam="exam" :cls="cls" />
     <div v-else-if="tab === 'grid'">
       <div class="notice"><Icon name="file" /> {{ t('exam.gridCopyNotice') }}</div>
-      <GridEditor :grid="exam.grid" />
+      <GridEditor :grid="exam.grid" :exam="exam" />
     </div>
   </div>
   <div v-else class="page">

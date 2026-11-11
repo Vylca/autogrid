@@ -26,7 +26,7 @@ export const SPECIAL_MARKS = [
   { code: 'R', key: 'notHandedIn' },
 ];
 
-export const DATA_VERSION = 3;
+export const DATA_VERSION = 4;
 
 // Grid format. 3: categories with their own rows, importance in parts.
 export const GRID_MODEL = 3;
@@ -57,6 +57,10 @@ export function newCategory(name = '') {
   return { id: uid(), name, importance: 0, rows: [] };
 }
 
+export function newRole(name = '', count = 1) {
+  return { id: uid(), name, count };
+}
+
 export function newRow(level, descriptor = '') {
   return { id: uid(), level, descriptor, importance: 0 };
 }
@@ -74,9 +78,10 @@ export function presetLevels(presetId) {
 }
 
 // categoryNames: null or [] for a grid without categories.
-// roleNames: group work, each role is graded as its own grid.
+// roleNames: group work with roles. Same sheet for every role, or with
+// roleGrids, each role is graded as its own grid.
 // groupWork without roleNames: same sheet for every member, groups of groupSize.
-export function newGrid({ name, type, presetId, categoryNames = null, roleNames = null, groupWork = false, groupSize = 2 }) {
+export function newGrid({ name, type, presetId, categoryNames = null, roleNames = null, roleGrids = false, groupWork = false, groupSize = 2 }) {
   const now = new Date().toISOString();
   const levels = presetLevels(presetId);
   const grid = {
@@ -89,6 +94,8 @@ export function newGrid({ name, type, presetId, categoryNames = null, roleNames 
     useCategories: false,
     groupWork: false,
     useRoles: false,
+    roleGrids: false,
+    roles: [],
     groupSize: 2,
     rowImportance: false,
     cellOverride: false,
@@ -102,14 +109,17 @@ export function newGrid({ name, type, presetId, categoryNames = null, roleNames 
   };
   if (grid.type === 'competences') {
     const roles = (roleNames || []).map((n) => String(n).trim()).filter(Boolean);
-    const names = roles.length ? roles : (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
+    const perRole = roles.length > 0 && !!roleGrids;
+    const names = perRole ? roles : (categoryNames || []).map((n) => String(n).trim()).filter(Boolean);
     grid.groupWork = !!groupWork || roles.length > 0;
     grid.useRoles = roles.length > 0;
+    grid.roleGrids = perRole;
+    grid.roles = perRole ? [] : roles.map((n) => newRole(n));
     grid.groupSize = Math.min(8, Math.max(2, Math.round(groupSize) || 2));
     grid.useCategories = names.length > 0;
     grid.categories = (names.length ? names : ['']).map((n) => {
       const cat = newCategory(n);
-      if (grid.useRoles) cat.count = 1;
+      if (perRole) cat.count = 1;
       cat.rows = levels.map((lvl) => newRow(lvl));
       return cat;
     });
@@ -138,6 +148,7 @@ export function duplicateGrid(grid, suffix) {
       cat.id = uid();
       for (const r of cat.rows) r.id = uid();
     }
+    for (const role of g.roles || []) role.id = uid();
   } else {
     const levelMap = {};
     const critMap = {};

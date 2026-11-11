@@ -73,9 +73,14 @@ export function levelPoints(max, k, n) {
   return Math.floor((2 * units * k + n) / (2 * n)) / 2;
 }
 
-// Group work with roles: each role (a category) is a separate sheet.
-export function usesRoles(grid) {
+// Group work with roles. By default every role has the same sheet and the
+// role is only a label. With roleGrids, each role (a category) has its own sheet.
+export function hasRoles(grid) {
   return !!(grid.groupWork && grid.useRoles);
+}
+
+export function usesRoles(grid) {
+  return !!(grid.groupWork && grid.useRoles && grid.roleGrids);
 }
 
 export function categoriesOf(grid) {

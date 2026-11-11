@@ -1,7 +1,7 @@
 // "Relevé global": one table for the class, with the mark and the average
 // acquisition of each student, per category when there are some, the skills
 // ticked to appear on their own, and the class average at the bottom.
-import { scaleInfo, usesRoles } from './bareme.js';
+import { scaleInfo, usesRoles, hasRoles } from './bareme.js';
 import { gridItems, itemScore, formatNumber, studentAcquisition, meanAcquisition, acquisitionOf, roundTo } from './scoring.js';
 import { examScore, examAverage, roleMap, rolesOf } from './groups.js';
 import { acqLevel, SPECIAL_MARKS } from './model.js';
@@ -38,15 +38,32 @@ function partPoints(grid, info, items, marks) {
 }
 
 // Skills (rows of a skills grid) ticked to get their own column.
-export function summaryRows(grid, info = scaleInfo(grid)) {
+// One sheet per role: the same skill ticked in several roles (same level,
+// descriptor and points) shares one column.
+export function summaryColumns(grid, info = scaleInfo(grid)) {
   if (grid.type === 'paliers') return [];
-  return gridItems(grid, info).filter((it) => it.row.inSummary);
+  const perRole = usesRoles(grid);
+  const cols = [];
+  const byKey = {};
+  for (const it of gridItems(grid, info)) {
+    if (!it.row.inSummary) continue;
+    const key = perRole ? `${it.row.level}|${(it.row.descriptor || '').trim()}|${it.max}` : it.id;
+    if (byKey[key] && !byKey[key].items.some((x) => x.category.id === it.category.id)) {
+      byKey[key].items.push(it);
+      continue;
+    }
+    const col = { id: it.id, row: it.row, max: it.max, category: it.category, items: [it] };
+    byKey[key] = col;
+    cols.push(col);
+  }
+  return cols;
 }
 
 // One ticked skill for one student: what the cell shows and what goes into the class average.
 // kind: 'level' (a colour), 'special' (A, D, R), 'none' (not graded), 'other' (another role).
-export function rowMark(grid, info, item, marks, roleId) {
-  if (usesRoles(grid) && roleId !== item.category.id) return { kind: 'other' };
+export function rowMark(grid, info, col, marks, roleId) {
+  const item = usesRoles(grid) ? col.items.find((it) => it.category.id === roleId) : col.items[0];
+  if (!item) return { kind: 'other' };
   const mark = marks?.[item.id];
   const s = itemScore(grid, item, mark, info);
   if (s.ungraded) return { kind: 'none' };
@@ -70,7 +87,7 @@ export function renderSummary({ exam, cls, students, lang }) {
   const grid = exam.grid;
   const info = scaleInfo(grid);
   const isPal = grid.type === 'paliers';
-  const roles = usesRoles(grid);
+  const roles = hasRoles(grid);
   const map = grid.groupWork ? roleMap(exam) : null;
   const roleNames = Object.fromEntries(rolesOf(grid).map((r) => [r.id, r.name || T('common.untitled')]));
   const items = gridItems(grid, info);
@@ -79,13 +96,14 @@ export function renderSummary({ exam, cls, students, lang }) {
   let parts = [];
   if (isPal) {
     parts = grid.criteria.map((c) => ({ id: c.id, name: c.name || T('common.untitled'), items: items.filter((it) => it.id === c.id), max: info.critMax[c.id] || 0 }));
-  } else if (grid.useCategories && !roles) {
+  } else if (grid.useCategories && !usesRoles(grid)) {
     parts = grid.categories
       .filter((c) => c.rows.length)
       .map((c) => ({ id: c.id, name: c.name || T('common.untitled'), items: items.filter((it) => it.category.id === c.id), max: info.catMax[c.id] || 0 }));
   }
 
-  const picked = summaryRows(grid, info);
+  const picked = summaryColumns(grid, info);
+  const roleCats = usesRoles(grid) ? grid.categories.filter((c) => c.rows.length).length : 0;
   const pts = (v, d = 2) => T('common.points', { n: v, v: fmt(v, d) });
 
   const target = fmt(info.target);
@@ -97,7 +115,10 @@ export function renderSummary({ exam, cls, students, lang }) {
     head += `<th class="part" colspan="${isPal ? 1 : 2}">${esc(p.name)}<br><small>/ ${fmt(p.max)}</small></th>`;
   }
   picked.forEach((it, i) => {
-    const cat = grid.useCategories ? `<span class="rc-cat">${esc(it.category.name || T('common.untitled'))}</span>` : '';
+    // Category or role of the skill. A column shared by every role has none.
+    let catName = grid.useCategories ? it.category.name || T('common.untitled') : '';
+    if (roleCats) catName = it.items.length >= roleCats ? '' : it.items.map((x) => x.category.name || T('common.untitled')).join(', ');
+    const cat = catName ? `<span class="rc-cat">${esc(catName)}</span>` : '';
     const text = shortText(it.row.descriptor) || T('grading.noDescriptor');
     head += `<th class="rc${i === 0 ? ' first' : ''}">${cat}<span class="rc-txt"><b>${esc(it.row.level)}</b> ${esc(text)}</span><small>/ ${fmt(it.max)}</small></th>`;
   });

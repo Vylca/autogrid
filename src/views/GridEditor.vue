@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from 'vue';
 import { t, lang } from '../lib/i18n.js';
-import { ACQ_LEVELS, newCategory } from '../lib/model.js';
-import { scaleInfo, snapHalf, usesRoles } from '../lib/bareme.js';
+import { ACQ_LEVELS, newCategory, newRole } from '../lib/model.js';
+import { scaleInfo, snapHalf, usesRoles, hasRoles } from '../lib/bareme.js';
+import { splitRoleGrids, mergeRoleGrids, roleGridsIdentical } from '../lib/groups.js';
 import CountStepper from '../components/CountStepper.vue';
 import { formatNumber } from '../lib/scoring.js';
 import WeightInput from '../components/WeightInput.vue';
@@ -11,7 +12,8 @@ import Icon from '../components/Icon.vue';
 import CompetencesEditor from './CompetencesEditor.vue';
 import PaliersEditor from './PaliersEditor.vue';
 
-const props = defineProps({ grid: Object });
+// exam: set when editing the grid of an assessment, so that marks follow a change of role mode.
+const props = defineProps({ grid: Object, exam: { type: Object, default: null } });
 
 const info = computed(() => scaleInfo(props.grid));
 const isPal = computed(() => props.grid.type === 'paliers');
@@ -45,6 +47,8 @@ function setCategories(on) {
 }
 
 const roles = computed(() => usesRoles(props.grid));
+// Roles with the same sheet for everyone: the roles are only names.
+const sharedRoles = computed(() => hasRoles(props.grid) && !roles.value);
 
 function setGroupWork(on) {
   const g = props.grid;
@@ -54,18 +58,48 @@ function setGroupWork(on) {
   if (!on) g.useRoles = false;
 }
 
-// With roles, each category becomes a role with its own sheet.
+function ensureRoles(g) {
+  if (!Array.isArray(g.roles)) g.roles = [];
+  while (g.roles.length < 2) g.roles.push(newRole(t('grid.roleN', { n: g.roles.length + 1 })));
+}
+
+// With one grid per role, each category is a role with its own sheet.
 function setRoles(on) {
   const g = props.grid;
   if (on === !!g.useRoles) return;
   g.useRoles = on;
-  if (on) {
-    g.useCategories = true;
-    g.categories.forEach((c, i) => {
-      if (!c.name) c.name = t('grid.roleN', { n: i + 1 });
-      if (!c.count) c.count = 1;
-    });
+  if (!on) return;
+  if (!g.roleGrids) {
+    ensureRoles(g);
+    return;
   }
+  g.useCategories = true;
+  g.categories.forEach((c, i) => {
+    if (!c.name) c.name = t('grid.roleN', { n: i + 1 });
+    if (!c.count) c.count = 1;
+  });
+}
+
+// Same grid for every role, or one grid per role. Marks follow each student's role.
+function setRoleGrids(on) {
+  const g = props.grid;
+  if (on === !!g.roleGrids) return;
+  if (on) {
+    if (g.useCategories && g.categories.length > 1 && !window.confirm(t('grid.confirmSplitRoles'))) return;
+    ensureRoles(g);
+    splitRoleGrids(g, props.exam);
+    return;
+  }
+  if (!roleGridsIdentical(g) && !window.confirm(t('grid.confirmMergeRoles', { name: g.categories[0]?.name || t('common.untitled') }))) return;
+  mergeRoleGrids(g, props.exam);
+}
+
+function addRole() {
+  props.grid.roles.push(newRole(t('grid.roleN', { n: props.grid.roles.length + 1 })));
+}
+
+function removeRole(i) {
+  props.grid.roles.splice(i, 1);
 }
 
 function warningText(w) {
@@ -120,6 +154,13 @@ function leaveLegacy() {
             <button :class="{ on: props.grid.useRoles }" :disabled="locked" @click="setRoles(true)">{{ t('common.yes') }}</button>
           </div>
         </div>
+        <div v-if="!isPal && props.grid.groupWork && props.grid.useRoles" class="field">
+          <span>{{ t('grid.roleGrids') }}</span>
+          <div class="segmented">
+            <button :class="{ on: !props.grid.roleGrids }" :disabled="locked" @click="setRoleGrids(false)">{{ t('common.no') }}</button>
+            <button :class="{ on: props.grid.roleGrids }" :disabled="locked" @click="setRoleGrids(true)">{{ t('common.yes') }}</button>
+          </div>
+        </div>
         <div v-if="!isPal && props.grid.groupWork && !props.grid.useRoles" class="field">
           <span>{{ t('grid.groupSize') }}</span>
           <CountStepper v-model="props.grid.groupSize" :min="2" :max="8" />
@@ -131,6 +172,19 @@ function leaveLegacy() {
             <button :class="{ on: props.grid.useCategories }" :disabled="locked" @click="setCategories(true)">{{ t('common.yes') }}</button>
           </div>
         </div>
+      </div>
+
+      <div v-if="sharedRoles" class="roles-box">
+        <span class="label">{{ t('grids.roleNames') }}</span>
+        <p class="hint">{{ t('grids.sharedGridHint') }}</p>
+        <div class="role-list">
+          <div v-for="(r, i) in props.grid.roles" :key="r.id" class="role-item">
+            <input v-model="r.name" class="input" :placeholder="t('grid.roleName')" />
+            <CountStepper v-model="r.count" :label="t('grid.studentsPerRole')" />
+            <button class="icon-btn danger" :disabled="props.grid.roles.length <= 1" :title="t('grid.deleteRole')" @click="removeRole(i)"><Icon name="trash" /></button>
+          </div>
+        </div>
+        <button class="btn small" @click="addRole"><Icon name="plus" :size="15" /> {{ t('grid.addRole') }}</button>
       </div>
 
       <div v-if="info.warnings.length" class="warnings">
@@ -206,6 +260,25 @@ function leaveLegacy() {
 }
 .total.warn {
   color: var(--accent-ink);
+}
+.roles-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 8px 0 10px;
+}
+.role-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.role-item .input {
+  width: 190px;
 }
 .warnings {
   display: flex;

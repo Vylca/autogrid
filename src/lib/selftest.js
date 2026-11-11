@@ -5,9 +5,9 @@ import { store, navigate } from './store.js';
 import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResult } from './model.js';
 import { setCellPoints } from './bareme.js';
 import { exportExamPdf, exportBlankGrid } from './exporter.js';
-import { summaryRows } from './printSummary.js';
+import { summaryColumns } from './printSummary.js';
 import { scoreStudent } from './scoring.js';
-import { fillRandomly, roleMap, examScore as examScoreOf } from './groups.js';
+import { fillRandomly, roleMap, examScore as examScoreOf, mergeRoleGrids } from './groups.js';
 
 const FAKE = [
   ['ARNAUD', 'Lina'], ['BENALI', 'Yanis'], ['COSTA', 'Inès'], ['DIALLO', 'Moussa'], ['DUBOIS LAMBERT', 'Chloé'],
@@ -96,7 +96,7 @@ function seed() {
     e3.results[s.id] = r;
   });
 
-  const gw = newGrid({ name: 'Interview du monstre', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'] });
+  const gw = newGrid({ name: 'Interview du monstre', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'], roleGrids: true });
   gw.categories[0].rows = [
     ['A1', 'Poser une question fermée'],
     ['A1', 'Poser une question ouverte'],
@@ -136,11 +136,29 @@ function seed() {
     ed.results[s.id] = r;
   });
 
-  store.data.grids.push(comp, plain, pal, gw, duo);
-  store.data.exams.push(eg, ed);
+  // One grid per role, with the same rows in both roles.
+  const fr = newGrid({ name: 'Friend reunion', type: 'competences', presetId: 'empty', roleNames: ['Rôle 1', 'Rôle 2'], roleGrids: true });
+  const frRows = [['A2', 'Se présenter'], ['B1', "Qualité de l'oral"], ['B1', 'Interagir']];
+  for (const c of fr.categories) c.rows = frRows.map(([l, dd]) => newRow(l, dd));
+  for (const c of fr.categories) c.rows[1].inSummary = true;
+  const er = newExam({ name: 'Friend reunion', date: '2026-11-11', classId: c3.id, grid: fr });
+  let seedR = 11;
+  fillRandomly(er, c3.students.map((s) => s.id), () => ((seedR = (seedR * 16807) % 2147483647) / 2147483647));
+  const rmap = roleMap(er);
+  c3.students.slice(0, 8).forEach((s, si) => {
+    const role = er.grid.categories.find((c) => c.id === rmap[s.id].roleId);
+    const r = emptyResult();
+    role.rows.forEach((row, ri) => (r.marks[row.id] = ['6', '5', '3', '4', '2'][(si + ri) % 5]));
+    er.results[s.id] = r;
+  });
+  // Same grid for every role from the start.
+  const sr = newGrid({ name: 'Débat à deux voix', type: 'competences', presetId: '3e', roleNames: ['Pour', 'Contre'], categoryNames: ['Langue', 'Interaction'] });
+
+  store.data.grids.push(comp, plain, pal, gw, duo, sr);
+  store.data.exams.push(eg, ed, er);
   store.data.classes.push(c3, c5);
   store.data.exams.push(e5, e3);
-  return { comp, plain, pal, gw, duo, c3, c5, e5, e3, eg, ed };
+  return { comp, plain, pal, gw, duo, sr, c3, c5, e5, e3, eg, ed, er };
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -168,6 +186,8 @@ export async function runSelftest(info) {
     ed: byId(store.data.exams, raw.ed.id),
     duo: byId(store.data.grids, raw.duo.id),
     gw: byId(store.data.grids, raw.gw.id),
+    sr: byId(store.data.grids, raw.sr.id),
+    er: byId(store.data.exams, raw.er.id),
   };
   navigate('exams');
   await shot('01-exams');
@@ -232,6 +252,8 @@ export async function runSelftest(info) {
   d.eg.sheetsVisible = 2;
   navigate('grid', d.gw.id);
   await shot('12-grid-roles');
+  navigate('grid', d.sr.id);
+  await shot('12b-grid-shared-roles');
   navigate('exam', d.ed.id, { tab: 'grading' });
   await shot('13-group-noroles');
   navigate('exam', d.ed.id, { tab: 'groups' });
@@ -315,7 +337,20 @@ export async function runSelftest(info) {
   d.eg.grid.categories[0].rows[0].inSummary = true;
   d.eg.grid.categories[1].rows[0].inSummary = true;
   await exportExamPdf(d.eg, d.c3, { studentIds: ids3, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-roles.pdf` });
-  await window.api.selftestLog('summaryRows', { e5: summaryRows(d.e5.grid).map((it) => it.row.level), eg: summaryRows(d.eg.grid).map((it) => it.row.level) });
+  // One grid per role with the same skill ticked in both roles: one column.
+  const idsR = d.c3.students.map((s) => s.id);
+  await exportExamPdf(d.er, d.c3, { studentIds: idsR, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-roles-same.pdf` });
+  const beforeR = idsR.map((id) => examScoreOf(d.er, id).score);
+  // Switch to the same grid for every role: marks follow each student.
+  mergeRoleGrids(d.er.grid, d.er);
+  const afterR = idsR.map((id) => examScoreOf(d.er, id).score);
+  await exportExamPdf(d.er, d.c3, { studentIds: idsR, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-shared-roles.pdf` });
+  navigate('exam', d.er.id, { tab: 'grid' });
+  await shot('12c-exam-shared-roles');
+  navigate('exam', d.er.id, { tab: 'grading' });
+  await shot('12d-grading-shared-roles');
+  await window.api.selftestLog('sharedRoles', { before: beforeR, after: afterR, same: JSON.stringify(beforeR) === JSON.stringify(afterR), roles: d.er.grid.roles.map((r) => r.name), columns: summaryColumns(d.er.grid).length });
+  await window.api.selftestLog('summaryRows', { e5: summaryColumns(d.e5.grid).map((it) => it.row.level), eg: summaryColumns(d.eg.grid).map((it) => it.row.level) });
   await exportBlankGrid(d.comp, { layout: 'packed', color: true, orientation: 'portrait', outputPath: `${dir}/blank-comp-fill.pdf` });
   await exportBlankGrid(d.pal, { layout: 'perPage', color: true, orientation: 'landscape', outputPath: `${dir}/blank-pal.pdf` });
   store.data.settings.lang = 'en';

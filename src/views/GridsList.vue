@@ -4,7 +4,8 @@ import { store, navigate } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { newGrid, duplicateGrid, PLACEMENT_PRESETS, CECRL_LEVELS } from '../lib/model.js';
 import { formatNumber } from '../lib/scoring.js';
-import { scaleInfo } from '../lib/bareme.js';
+import { scaleInfo, usesRoles, hasRoles } from '../lib/bareme.js';
+import { rolesOf } from '../lib/groups.js';
 import { exportBlankGrid } from '../lib/exporter.js';
 import Icon from '../components/Icon.vue';
 import CountStepper from '../components/CountStepper.vue';
@@ -22,10 +23,9 @@ function counts(g) {
   if (g.type === 'paliers') return [t('grids.nCriteria', { n: g.criteria.length })];
   const rows = g.categories.reduce((n, c) => n + c.rows.length, 0);
   const out = [];
-  if (g.groupWork && g.useRoles) out.push(t('grids.nRoles', { n: g.categories.length }));
+  if (hasRoles(g)) out.push(t('grids.nRoles', { n: rolesOf(g).length }));
   else if (g.groupWork) out.push(t('grids.groupOf', { n: g.groupSize || 2 }));
-  if (g.groupWork && !g.useRoles && g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
-  else if (g.useCategories) out.push(t('grids.nCategories', { n: g.categories.length }));
+  if (g.useCategories && !usesRoles(g)) out.push(t('grids.nCategories', { n: g.categories.length }));
   out.push(t('grids.nRows', { n: rows }));
   return out;
 }
@@ -35,31 +35,51 @@ function usedBy(g) {
 
 // New grid
 const showNew = ref(false);
-const blankForm = () => ({ name: '', type: 'competences', presetId: '5e', groupWork: false, useRoles: false, groupSize: 2, useCategories: false, categories: [], draft: '' });
+const blankForm = () => ({
+  name: '',
+  type: 'competences',
+  presetId: '5e',
+  groupWork: false,
+  useRoles: false,
+  roleGrids: false,
+  roles: [],
+  roleDraft: '',
+  groupSize: 2,
+  useCategories: false,
+  categories: [],
+  draft: '',
+});
 const form = ref(blankForm());
 function openNew() {
   form.value = blankForm();
   showNew.value = true;
 }
-function addDraft() {
-  const parts = form.value.draft.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
-  for (const p of parts) if (!form.value.categories.includes(p)) form.value.categories.push(p);
-  form.value.draft = '';
+function addNames(listKey, draftKey) {
+  const f = form.value;
+  const parts = f[draftKey].split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  for (const p of parts) if (!f[listKey].includes(p)) f[listKey].push(p);
+  f[draftKey] = '';
 }
+const addDraft = () => addNames('categories', 'draft');
+const addRoleDraft = () => addNames('roles', 'roleDraft');
+// One grid per role: the roles are the tabs, so there are no categories.
+const perRoleForm = computed(() => form.value.groupWork && form.value.useRoles && form.value.roleGrids);
 function create() {
   if (!form.value.name.trim()) return;
   addDraft();
+  addRoleDraft();
   const f = form.value;
   const skills = f.type === 'competences';
   const withRoles = skills && f.groupWork && f.useRoles;
-  const roles = withRoles ? (f.categories.length ? f.categories : [t('grid.roleN', { n: 1 }), t('grid.roleN', { n: 2 })]) : null;
-  const names = skills && !withRoles && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
+  const roles = withRoles ? (f.roles.length ? f.roles : [t('grid.roleN', { n: 1 }), t('grid.roleN', { n: 2 })]) : null;
+  const names = skills && !(withRoles && f.roleGrids) && f.useCategories ? (f.categories.length ? f.categories : [t('grid.categoryN', { n: 1 })]) : null;
   const g = newGrid({
     name: f.name.trim(),
     type: f.type,
     presetId: f.presetId,
     categoryNames: names,
     roleNames: roles,
+    roleGrids: withRoles && f.roleGrids,
     groupWork: skills && f.groupWork,
     groupSize: f.groupSize,
   });
@@ -179,11 +199,32 @@ async function runExport() {
         </div>
         <span class="hint">{{ form.useRoles ? t('grids.rolesHint') : t('grids.noRolesHint') }}</span>
       </div>
+      <div v-if="form.type === 'competences' && form.groupWork && form.useRoles" class="field">
+        <span>{{ t('grids.roleNames') }}</span>
+        <div class="chips">
+          <span v-for="(c, i) in form.roles" :key="c" class="chip">
+            {{ c }}
+            <button class="chip-x" :title="t('common.delete')" @click="form.roles.splice(i, 1)"><Icon name="x" :size="13" /></button>
+          </span>
+        </div>
+        <div class="draft">
+          <input v-model="form.roleDraft" class="input" :placeholder="t('grids.rolePlaceholder')" @keydown.enter.prevent="addRoleDraft" />
+          <button class="btn small" :disabled="!form.roleDraft.trim()" @click="addRoleDraft"><Icon name="plus" :size="15" /> {{ t('grids.addCategoryName') }}</button>
+        </div>
+      </div>
+      <div v-if="form.type === 'competences' && form.groupWork && form.useRoles" class="field">
+        <span>{{ t('grid.roleGrids') }}</span>
+        <div class="segmented">
+          <button :class="{ on: !form.roleGrids }" @click="form.roleGrids = false">{{ t('common.no') }}</button>
+          <button :class="{ on: form.roleGrids }" @click="form.roleGrids = true">{{ t('common.yes') }}</button>
+        </div>
+        <span class="hint">{{ form.roleGrids ? t('grids.roleGridsHint') : t('grids.sharedGridHint') }}</span>
+      </div>
       <div v-if="form.type === 'competences' && form.groupWork && !form.useRoles" class="field">
         <span>{{ t('grid.groupSize') }}</span>
         <CountStepper v-model="form.groupSize" :min="2" :max="8" />
       </div>
-      <div v-if="form.type === 'competences' && !(form.groupWork && form.useRoles)" class="field">
+      <div v-if="form.type === 'competences' && !perRoleForm" class="field">
         <span>{{ t('grid.useCategories') }}</span>
         <div class="segmented">
           <button :class="{ on: !form.useCategories }" @click="form.useCategories = false">{{ t('common.no') }}</button>
@@ -191,8 +232,8 @@ async function runExport() {
         </div>
         <span class="hint">{{ t('grids.categoriesHint') }}</span>
       </div>
-      <div v-if="form.type === 'competences' && (form.groupWork && form.useRoles ? true : form.useCategories)" class="field">
-        <span>{{ form.groupWork && form.useRoles ? t('grids.roleNames') : t('grids.categoryNames') }}</span>
+      <div v-if="form.type === 'competences' && !perRoleForm && form.useCategories" class="field">
+        <span>{{ t('grids.categoryNames') }}</span>
         <div class="chips">
           <span v-for="(c, i) in form.categories" :key="c" class="chip">
             {{ c }}
@@ -200,7 +241,7 @@ async function runExport() {
           </span>
         </div>
         <div class="draft">
-          <input v-model="form.draft" class="input" :placeholder="form.groupWork && form.useRoles ? t('grids.rolePlaceholder') : t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
+          <input v-model="form.draft" class="input" :placeholder="t('grids.categoryPlaceholder')" @keydown.enter.prevent="addDraft" />
           <button class="btn small" :disabled="!form.draft.trim()" @click="addDraft"><Icon name="plus" :size="15" /> {{ t('grids.addCategoryName') }}</button>
         </div>
       </div>

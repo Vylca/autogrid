@@ -1,6 +1,8 @@
-// Group work: roles live in the grid (its categories), groups live in the exam.
+// Group work: roles live in the grid, groups live in the exam.
+// Same sheet for every role: grid.roles = [{ id, name, count }].
+// One sheet per role (roleGrids): each category is a role.
 // exam.groups = [{ id, slots: { [roleId]: [studentId | null, ...] } }]
-import { uid } from './model.js';
+import { uid, newRole, cloneDeep } from './model.js';
 import { scoreStudent, noRoleScore } from './scoring.js';
 import { scaleInfo, usesRoles } from './bareme.js';
 
@@ -10,7 +12,7 @@ export const MEMBER_ROLE = 'member';
 
 export function rolesOf(grid) {
   if (!grid.groupWork) return [];
-  if (grid.useRoles) return grid.categories || [];
+  if (grid.useRoles) return (grid.roleGrids ? grid.categories : grid.roles) || [];
   return [{ id: MEMBER_ROLE, name: '', count: grid.groupSize || 2 }];
 }
 
@@ -232,4 +234,87 @@ export function fillRandomly(exam, studentIds, rng = Math.random) {
     fillGroup(g);
   }
   return exam.groups;
+}
+
+function sameRow(a, b) {
+  return !!a && !!b && a.level === b.level && (a.descriptor || '').trim() === (b.descriptor || '').trim();
+}
+
+// True when every role has the same rows (level and descriptor, in the same order).
+export function roleGridsIdentical(grid) {
+  const cats = grid.categories || [];
+  const first = cats[0]?.rows || [];
+  return cats.every((c) => c.rows.length === first.length && c.rows.every((r, i) => sameRow(r, first[i])));
+}
+
+function remapResult(result, ids, commentIds = {}) {
+  if (!result) return;
+  const marks = {};
+  for (const [id, v] of Object.entries(result.marks || {})) if (ids[id]) marks[ids[id]] = v;
+  result.marks = marks;
+  const comments = {};
+  for (const [id, text] of Object.entries(result.comments || {})) {
+    const to = ids[id] || commentIds[id];
+    if (!to || !text) continue;
+    comments[to] = comments[to] ? `${comments[to]}\n${text}` : text;
+  }
+  result.comments = comments;
+}
+
+// Same sheet for every role -> one sheet per role. Each role gets a copy of
+// every row. Marks and comments follow the role of each student.
+export function splitRoleGrids(grid, exam = null) {
+  const map = exam ? roleMap(exam) : null;
+  const roles = grid.roles?.length ? grid.roles : [newRole('')];
+  const rows = grid.categories.flatMap((c) => c.rows);
+  const firstOfCat = Object.fromEntries(grid.categories.map((c) => [c.id, c.rows[0]?.id]));
+  const ids = {};
+  grid.categories = roles.map((r) => {
+    ids[r.id] = {};
+    const copies = rows.map((row) => {
+      const copy = { ...cloneDeep(row), id: uid() };
+      ids[r.id][row.id] = copy.id;
+      return copy;
+    });
+    return { id: r.id, name: r.name, count: r.count || 1, importance: 0, rows: copies };
+  });
+  grid.roles = [];
+  grid.roleGrids = true;
+  grid.useCategories = true;
+  if (!exam) return;
+  const firstRole = roles[0].id;
+  for (const [sid, result] of Object.entries(exam.results || {})) {
+    const rid = map[sid]?.roleId && ids[map[sid].roleId] ? map[sid].roleId : firstRole;
+    const commentIds = {};
+    for (const [cid, rowId] of Object.entries(firstOfCat)) if (rowId) commentIds[cid] = ids[rid][rowId];
+    remapResult(result, ids[rid], commentIds);
+  }
+}
+
+// One sheet per role -> same sheet for every role. The first role's rows are
+// kept. Marks of the other roles are kept on the rows that are the same.
+export function mergeRoleGrids(grid, exam = null) {
+  const map = exam ? roleMap(exam) : null;
+  const cats = grid.categories;
+  const first = cats[0];
+  const ids = {};
+  for (const c of cats) {
+    ids[c.id] = {};
+    c.rows.forEach((r, i) => {
+      const to = first.rows[i];
+      if (c === first || sameRow(r, to)) {
+        ids[c.id][r.id] = to.id;
+        if (r.inSummary) to.inSummary = true;
+      }
+    });
+  }
+  grid.roles = cats.map((c) => ({ id: c.id, name: c.name, count: c.count || 1 }));
+  grid.categories = [{ id: uid(), name: '', importance: 0, rows: first.rows }];
+  grid.useCategories = false;
+  grid.roleGrids = false;
+  if (!exam) return;
+  for (const [sid, result] of Object.entries(exam.results || {})) {
+    const rid = map[sid]?.roleId && ids[map[sid].roleId] ? map[sid].roleId : first.id;
+    remapResult(result, ids[rid]);
+  }
 }

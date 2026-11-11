@@ -263,7 +263,7 @@ test('windows-1252 decoding', () => {
 import { roleMap, examScore, examAverage, fillRandomly, assignStudent, newGroup, groupSlots, groupSize, placeStudent, moveStudent, addToGroup, moveGroup, groupNumbers, clearSlot } from '../src/lib/groups.js';
 
 function interviewExam() {
-  const g = newGrid({ name: 'Interview', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'] });
+  const g = newGrid({ name: 'Interview', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'], roleGrids: true });
   g.categories[0].rows = ['A1', 'A1', 'A2', 'A2', 'B1'].map((l) => newRow(l));
   g.categories[1].rows = ['A1', 'A1', 'A2', 'A2'].map((l) => newRow(l));
   const e = newExam({ name: 'e', classId: 'c', grid: g });
@@ -330,11 +330,20 @@ test('group work without roles: same sheet for every member, graded separately',
   assert.equal(scaleInfo(e.grid).total, 20);
 });
 
-test('0.4 group grids keep their roles', () => {
-  const g = newGrid({ name: 'x', type: 'competences', presetId: 'empty', roleNames: ['A', 'B'] });
+test('0.4 to 0.7 group grids keep one grid per role', () => {
+  const g = newGrid({ name: 'x', type: 'competences', presetId: 'empty', roleNames: ['A', 'B'], roleGrids: true });
   delete g.useRoles;
+  delete g.roleGrids;
+  delete g.roles;
   migrateGrid(g);
   assert.equal(g.useRoles, true);
+  assert.equal(g.roleGrids, true);
+  assert.deepEqual(g.roles, []);
+  assert.deepEqual(rolesOf(g).map((r) => r.name), ['A', 'B']);
+  const plain = newGrid({ name: 'y', type: 'competences', presetId: '5e' });
+  delete plain.roleGrids;
+  migrateGrid(plain);
+  assert.equal(plain.roleGrids, false);
 });
 
 test('a student can be in several groups with one sheet, and one role', () => {
@@ -416,15 +425,15 @@ test('acquisition average: weighted by points, per category, R counts as lowest'
   assert.equal(studentAcquisition(newGrid({ name: 'p', type: 'paliers', presetId: '3e' }), { marks: {} }), null);
 });
 
-import { summaryRows, rowMark, renderSummary } from '../src/lib/printSummary.js';
+import { summaryColumns, rowMark, renderSummary } from '../src/lib/printSummary.js';
 
 test('summary: ticked skills get their own column, per role, with the class average', () => {
   const g = skills([{ name: 'Grammaire', rows: [0, 0] }, { name: 'Lexique', rows: [0] }]);
-  assert.deepEqual(summaryRows(g), []);
+  assert.deepEqual(summaryColumns(g), []);
   g.categories[0].rows[1].inSummary = true;
   g.categories[1].rows[0].inSummary = true;
   const info = scaleInfo(g);
-  const rows = summaryRows(g, info);
+  const rows = summaryColumns(g, info);
   assert.deepEqual(rows.map((it) => it.id), ['c0r1', 'c1r0']);
   assert.deepEqual(rowMark(g, info, rows[0], { c0r1: '6' }), { kind: 'level', mark: '6', earned: info.rowMax.c0r1, acq: acquisitionOf([rows[0]], { c0r1: '6' }) });
   assert.equal(rowMark(g, info, rows[0], { c0r1: 'R' }).earned, 0);
@@ -440,5 +449,69 @@ test('summary: ticked skills get their own column, per role, with the class aver
   const r = interviewExam();
   r.grid.categories[0].rows[0].inSummary = true;
   const ri = scaleInfo(r.grid);
-  assert.equal(rowMark(r.grid, ri, summaryRows(r.grid, ri)[0], {}, r.grid.categories[1].id).kind, 'other');
+  assert.equal(rowMark(r.grid, ri, summaryColumns(r.grid, ri)[0], {}, r.grid.categories[1].id).kind, 'other');
+});
+
+import { splitRoleGrids, mergeRoleGrids, roleGridsIdentical } from '../src/lib/groups.js';
+import { hasRoles, usesRoles, rowsOf } from '../src/lib/bareme.js';
+import { rolesOf } from '../src/lib/groups.js';
+
+test('roles: same grid for every role by default, the role is only a name', () => {
+  const g = newGrid({ name: 'r', type: 'competences', presetId: '3e', roleNames: ['Pour', 'Contre'], categoryNames: ['Langue', 'Interaction'] });
+  assert.equal(hasRoles(g), true);
+  assert.equal(usesRoles(g), false);
+  assert.deepEqual(rolesOf(g).map((r) => r.name), ['Pour', 'Contre']);
+  assert.deepEqual(g.categories.map((c) => c.name), ['Langue', 'Interaction']);
+  assert.equal(scaleInfo(g).total, 20);
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.groups = [{ id: 'g1', slots: { [g.roles[0].id]: ['a'], [g.roles[1].id]: ['b'] } }];
+  const all = rowsOf(g);
+  e.results.a = { marks: Object.fromEntries(all.map((r) => [r.id, '6'])), comments: {}, comment: '' };
+  e.results.b = { marks: Object.fromEntries(all.map((r) => [r.id, '6'])), comments: {}, comment: '' };
+  assert.equal(examScore(e, 'a').score, 20);
+  assert.equal(examScore(e, 'b').score, 20);
+  // No role conflict: the sheet is the same whatever the role.
+  e.groups.push({ id: 'g2', slots: { [g.roles[0].id]: [null], [g.roles[1].id]: [null] } });
+  assert.equal(addToGroup(e, e.groups[1], 'a').ok, true);
+});
+
+test('roles: switching between one grid per role and the same grid keeps the marks', () => {
+  const g = newGrid({ name: 'r', type: 'competences', presetId: 'empty', roleNames: ['R1', 'R2'], roleGrids: true });
+  for (const c of g.categories) c.rows = [newRow('A2', 'Se présenter'), newRow('B1', "Qualité de l'oral")];
+  g.categories[1].rows[1].inSummary = true;
+  assert.equal(roleGridsIdentical(g), true);
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  const [r1, r2] = e.grid.categories;
+  e.groups = [{ id: 'g1', slots: { [r1.id]: ['a'], [r2.id]: ['b'] } }];
+  e.results.a = { marks: { [r1.rows[0].id]: '6', [r1.rows[1].id]: '3' }, comments: { [r1.rows[1].id]: 'ok' }, comment: '' };
+  e.results.b = { marks: { [r2.rows[0].id]: '4', [r2.rows[1].id]: '5' }, comments: {}, comment: '' };
+  const before = ['a', 'b'].map((id) => examScore(e, id).score);
+  // Two columns become one in the summary even before merging.
+  assert.equal(summaryColumns(e.grid).length, 1);
+  mergeRoleGrids(e.grid, e);
+  assert.equal(usesRoles(e.grid), false);
+  assert.deepEqual(e.grid.roles.map((r) => r.name), ['R1', 'R2']);
+  assert.equal(rowsOf(e.grid).length, 2);
+  assert.equal(rowsOf(e.grid)[1].inSummary, true);
+  assert.deepEqual(['a', 'b'].map((id) => examScore(e, id).score), before);
+  assert.equal(e.results.a.comments[rowsOf(e.grid)[1].id], 'ok');
+  // And back: each role gets a copy of the rows, marks follow the role.
+  splitRoleGrids(e.grid, e);
+  assert.equal(usesRoles(e.grid), true);
+  assert.deepEqual(e.grid.categories.map((c) => c.name), ['R1', 'R2']);
+  assert.deepEqual(['a', 'b'].map((id) => examScore(e, id).score), before);
+  assert.equal(Object.keys(e.results.b.marks).every((id) => e.grid.categories[1].rows.some((r) => r.id === id)), true);
+});
+
+test('roles: different role grids keep only the rows that match when merged', () => {
+  const g = newGrid({ name: 'r', type: 'competences', presetId: 'empty', roleNames: ['R1', 'R2'], roleGrids: true });
+  g.categories[0].rows = [newRow('A1', 'x'), newRow('A2', 'y')];
+  g.categories[1].rows = [newRow('A1', 'x'), newRow('A2', 'z')];
+  assert.equal(roleGridsIdentical(g), false);
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  const [r1, r2] = e.grid.categories;
+  e.groups = [{ id: 'g1', slots: { [r1.id]: ['a'], [r2.id]: ['b'] } }];
+  e.results.b = { marks: { [r2.rows[0].id]: '6', [r2.rows[1].id]: '6' }, comments: {}, comment: '' };
+  mergeRoleGrids(e.grid, e);
+  assert.deepEqual(Object.keys(e.results.b.marks), [rowsOf(e.grid)[0].id]);
 });

@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { emptyResult } from '../lib/model.js';
-import { scaleInfo, usesRoles } from '../lib/bareme.js';
+import { scaleInfo, usesRoles, hasRoles } from '../lib/bareme.js';
 import { itemScore, formatNumber, studentAcquisition } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
 import { groupMembers, roleMap, examScore, examAverage, rolesOf } from '../lib/groups.js';
@@ -64,6 +64,7 @@ watch(visible, () => {
 });
 
 const withRoles = computed(() => usesRoles(grid.value));
+const roleLabels = computed(() => hasRoles(grid.value));
 // Without roles every member has the whole grid.
 const allRows = computed(() => grid.value.categories.flatMap((c) => c.rows));
 // Category name shown above the first row of each category (no roles, several categories).
@@ -281,7 +282,7 @@ function setRowComment(id, rowId, value) {
               <div class="gs-who">
                 <div class="gs-name"><strong>{{ byId[m.studentId].lastName }}</strong> {{ byId[m.studentId].firstName }}</div>
                 <div class="gs-tags">
-                  <span v-if="withRoles" class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
+                  <span v-if="roleLabels" class="role-tag">{{ m.role.name || t('common.untitled') }}</span>
                   <AcqBadge compact :acq="acqs[m.studentId]?.overall" />
                 </div>
               </div>
