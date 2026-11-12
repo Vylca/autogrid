@@ -44,6 +44,12 @@ function cardColor(id) {
   return lvl ? { '--acq': lvl.color } : null;
 }
 
+// Roster dot: shape for the progress, colour of the average acquisition.
+function dotColor(id) {
+  const lvl = acqLevel(acqs.value[id]?.overall?.code);
+  return lvl ? { '--dot': lvl.color } : null;
+}
+
 const currentId = ref(groups.value.find((g) => g.group.id === store.route.groupId)?.group.id || groups.value[0]?.group.id || null);
 const current = computed(() => groups.value.find((g) => g.group.id === currentId.value) || groups.value[0] || null);
 const currentPos = computed(() => groups.value.indexOf(current.value));
@@ -243,7 +249,7 @@ function setRowComment(id, rowId, value) {
         <button v-for="g in groups" :key="g.group.id" class="g-item" :class="{ on: g.group.id === current?.group.id }" @click="currentId = g.group.id">
           <span class="g-name">{{ t('groups.name', { n: g.index + 1 }) }}</span>
           <span v-for="m in g.members" :key="m.studentId" class="g-member">
-            <span class="status" :class="'st-' + memberStatus(m.studentId)"></span>
+            <span class="status" :class="['st-' + memberStatus(m.studentId), { 'has-acq': !!dotColor(m.studentId) }]" :style="dotColor(m.studentId)"></span>
             <span class="g-mname">{{ byId[m.studentId].lastName }} {{ byId[m.studentId].firstName }}</span>
             <span class="g-score">{{ scoreText(scores[m.studentId]) }}</span>
           </span>
@@ -447,6 +453,15 @@ function setRowComment(id, rowId, value) {
   border-color: var(--ink-3);
   background: var(--ink-3);
 }
+.status.has-acq {
+  border-color: color-mix(in srgb, var(--dot) 82%, black);
+}
+.status.has-acq.st-partial {
+  background: linear-gradient(90deg, var(--dot) 50%, transparent 50%);
+}
+.status.has-acq.st-complete {
+  background: var(--dot);
+}
 .roster-foot {
   display: flex;
   justify-content: space-between;
@@ -524,8 +539,8 @@ function setRowComment(id, rowId, value) {
   overflow: hidden;
 }
 .gsheet.focused {
-  border-top-color: var(--accent);
-  box-shadow: 0 2px 10px rgba(39, 71, 176, 0.12);
+  border-color: var(--ink-2);
+  box-shadow: 0 0 0 2px var(--ink-2), 0 2px 10px rgba(0, 0, 0, 0.12);
 }
 .gsheet.has-acq {
   border-color: color-mix(in srgb, var(--acq) 50%, var(--rule));
@@ -539,7 +554,8 @@ function setRowComment(id, rowId, value) {
   transition: background 0.2s ease;
 }
 .gsheet.has-acq.focused {
-  box-shadow: 0 0 0 2px var(--accent), 0 2px 10px rgba(39, 71, 176, 0.12);
+  border-color: color-mix(in srgb, var(--acq) 78%, black);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acq) 78%, black), 0 2px 12px color-mix(in srgb, var(--acq) 35%, transparent);
 }
 .gsheet-head {
   display: flex;

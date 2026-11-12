@@ -34,6 +34,17 @@ const scores = computed(() => {
 });
 const currentScore = computed(() => scores.value[currentId.value] || null);
 const acq = computed(() => studentAcquisition(grid.value, result.value));
+// Roster dot: shape for the progress, colour of the average acquisition.
+const dots = computed(() => {
+  const out = {};
+  for (const s of students.value) {
+    const lvl = acqLevel(studentAcquisition(grid.value, props.exam.results[s.id])?.overall?.code);
+    if (lvl) out[s.id] = { '--dot': lvl.color };
+  }
+  return out;
+});
+const dotColor = (id) => dots.value[id] || null;
+
 // The student's card takes the colour of the average acquisition.
 const cardColor = computed(() => {
   const lvl = acqLevel(acq.value?.overall?.code);
@@ -274,7 +285,7 @@ const studentComment = computed({
           :class="{ on: s.id === currentId }"
           @click="currentId = s.id"
         >
-          <span class="status" :class="'st-' + statusOf(s.id)" :title="t('status.' + statusOf(s.id))"></span>
+          <span class="status" :class="['st-' + statusOf(s.id), { 'has-acq': !!dotColor(s.id) }]" :style="dotColor(s.id)" :title="t('status.' + statusOf(s.id))"></span>
           <span class="rname"><strong>{{ s.lastName }}</strong> {{ s.firstName }}</span>
           <span class="rscore">{{ scoreText(scores[s.id]) }}</span>
         </button>
@@ -545,6 +556,15 @@ const studentComment = computed({
 .status.st-exempt {
   border-color: var(--ink-3);
   background: var(--ink-3);
+}
+.status.has-acq {
+  border-color: color-mix(in srgb, var(--dot) 82%, black);
+}
+.status.has-acq.st-partial {
+  background: linear-gradient(90deg, var(--dot) 50%, transparent 50%);
+}
+.status.has-acq.st-complete {
+  background: var(--dot);
 }
 .roster-foot {
   display: flex;
