@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
-import { sortStudents, emptyResult, SPECIAL_MARKS } from '../lib/model.js';
+import { sortStudents, emptyResult, SPECIAL_MARKS, acqLevel } from '../lib/model.js';
 import { gridItems, scoreStudent, itemScore, classAverage, formatNumber, studentAcquisition } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
 import { cellPoints, partialPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
@@ -34,6 +34,11 @@ const scores = computed(() => {
 });
 const currentScore = computed(() => scores.value[currentId.value] || null);
 const acq = computed(() => studentAcquisition(grid.value, result.value));
+// The student's card takes the colour of the average acquisition.
+const cardColor = computed(() => {
+  const lvl = acqLevel(acq.value?.overall?.code);
+  return lvl ? { '--acq': lvl.color } : null;
+});
 const average = computed(() => classAverage(grid.value, props.exam.results, students.value.map((s) => s.id)));
 
 const groups = computed(() => {
@@ -300,7 +305,7 @@ const studentComment = computed({
           <span class="label">{{ t('acq.average') }}</span>
           <AcqBadge :acq="acq.overall" />
         </div>
-        <div class="score-box" :class="currentScore?.status">
+        <div class="score-box" :class="[currentScore?.status, { 'has-acq': !!cardColor }]" :style="cardColor">
           <span class="big">{{ scoreText(currentScore) || '–' }}</span>
           <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.target, lang) }}</span>
           <span class="state">{{ t('status.' + (currentScore?.status || 'empty')) }}</span>
@@ -614,6 +619,14 @@ const studentComment = computed({
 .score-box.empty,
 .score-box.partial {
   border-color: var(--rule-strong);
+}
+.score-box.has-acq {
+  border-color: var(--acq);
+  background: color-mix(in srgb, var(--acq) 22%, var(--surface));
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.score-box.has-acq .state {
+  color: var(--ink-2);
 }
 
 /* Skills grid */

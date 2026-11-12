@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
-import { emptyResult } from '../lib/model.js';
+import { emptyResult, acqLevel } from '../lib/model.js';
 import { scaleInfo, usesRoles, hasRoles } from '../lib/bareme.js';
 import { itemScore, formatNumber, studentAcquisition } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
@@ -37,6 +37,12 @@ const acqs = computed(() => {
   return out;
 });
 const average = computed(() => examAverage(props.exam, Object.keys(map.value)));
+
+// The card takes the colour of the student's average acquisition.
+function cardColor(id) {
+  const lvl = acqLevel(acqs.value[id]?.overall?.code);
+  return lvl ? { '--acq': lvl.color } : null;
+}
 
 const currentId = ref(groups.value.find((g) => g.group.id === store.route.groupId)?.group.id || groups.value[0]?.group.id || null);
 const current = computed(() => groups.value.find((g) => g.group.id === currentId.value) || groups.value[0] || null);
@@ -276,7 +282,8 @@ function setRowComment(id, rowId, value) {
             v-for="(m, i) in shown"
             :key="m.studentId"
             class="gsheet"
-            :class="{ focused: offset + i === focusSheet }"
+            :class="{ focused: offset + i === focusSheet, 'has-acq': !!cardColor(m.studentId) }"
+            :style="cardColor(m.studentId)"
             @click="focusSheet = offset + i"
           >
             <header class="gsheet-head">
@@ -519,6 +526,20 @@ function setRowComment(id, rowId, value) {
 .gsheet.focused {
   border-top-color: var(--accent);
   box-shadow: 0 2px 10px rgba(39, 71, 176, 0.12);
+}
+.gsheet.has-acq {
+  border-color: color-mix(in srgb, var(--acq) 50%, var(--rule));
+  border-top-color: var(--acq);
+  background: color-mix(in srgb, var(--acq) 5%, var(--surface));
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.gsheet.has-acq .gsheet-head {
+  background: color-mix(in srgb, var(--acq) 24%, var(--surface));
+  border-bottom-color: color-mix(in srgb, var(--acq) 45%, var(--surface));
+  transition: background 0.2s ease;
+}
+.gsheet.has-acq.focused {
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 10px rgba(39, 71, 176, 0.12);
 }
 .gsheet-head {
   display: flex;
