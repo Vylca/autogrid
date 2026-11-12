@@ -2,7 +2,7 @@
 // Runs only when the app is started with AUTOGRID_SELFTEST=<folder>.
 import { nextTick } from 'vue';
 import { store, navigate } from './store.js';
-import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResult } from './model.js';
+import { newGrid, newRow, newCriterion, newClass, newStudent, newExam, emptyResult, sortStudents } from './model.js';
 import { setCellPoints } from './bareme.js';
 import { exportExamPdf, exportBlankGrid } from './exporter.js';
 import { summaryColumns } from './printSummary.js';
@@ -95,6 +95,17 @@ function seed() {
     if (si === 3) r.marks[e3.grid.criteria[4].id] = 'D';
     e3.results[s.id] = r;
   });
+  // First student: one level partly reached, a bonus and a penalty.
+  const first3 = sortStudents(c3.students)[0];
+  if (!e3.results[first3.id]) {
+    e3.results[first3.id] = emptyResult();
+    e3.grid.criteria.forEach((c) => (e3.results[first3.id].marks[c.id] = lv[1]));
+  }
+  e3.results[first3.id].partial = { [e3.grid.criteria[1].id]: true };
+  e3.results[first3.id].adjustments = [
+    { id: 'adj1', reason: 'Participation très active', points: 1 },
+    { id: 'adj2', reason: 'Oubli du support', points: -0.5 },
+  ];
 
   const gw = newGrid({ name: 'Interview du monstre', type: 'competences', presetId: 'empty', roleNames: ['Intervieweur', 'Monstre'], roleGrids: true });
   gw.categories[0].rows = [
@@ -212,6 +223,18 @@ export async function runSelftest(info) {
   await window.api.selftestLog('keyboard', { marks: before, route: store.route.studentId === last.id ? 'same' : 'moved' });
   navigate('exam', d.e3.id, { tab: 'grading' });
   await shot('03-grading-paliers');
+  // P: partly reached on the focused criterion, then back.
+  const firstId = sortStudents(d.c3.students)[0].id;
+  const crit0 = d.e3.grid.criteria[0].id;
+  press('p');
+  await wait(150);
+  await shot('03b-grading-paliers-partial');
+  document.querySelector('.adjustments')?.scrollIntoView({ block: 'center' });
+  await shot('03c-grading-adjustments');
+  const partialOn = !!d.e3.results[firstId]?.partial?.[crit0];
+  press('p');
+  await wait(100);
+  await window.api.selftestLog('partial', { partialOn, partialOff: !d.e3.results[firstId]?.partial?.[crit0], score: scoreStudent(d.e3.grid, d.e3.results[firstId]) });
   navigate('exam', d.eg.id, { tab: 'groups' });
   await shot('10-groups');
   // Drag and drop: a student already placed joins a new group, then that group moves to position 2.
@@ -247,6 +270,18 @@ export async function runSelftest(info) {
   store.toasts.splice(0);
   navigate('exam', d.eg.id, { tab: 'grading' });
   await shot('11-group-grading');
+  // Bonus on the first sheet, typed reason.
+  document.querySelector('.gsheet-adj .adj-add .btn')?.click();
+  await wait(150);
+  const reason = document.querySelector('.gsheet-adj .adj-reason');
+  if (reason) {
+    reason.value = 'Aide un camarade';
+    reason.dispatchEvent(new Event('input'));
+  }
+  document.querySelector('.gsheet-adj .adj-step button:last-child')?.click();
+  await wait(100);
+  document.querySelector('.gsheet-adj')?.scrollIntoView({ block: 'center' });
+  await shot('11c-group-adjust');
   d.eg.sheetsVisible = 1;
   await shot('11b-group-grading-one');
   d.eg.sheetsVisible = 2;

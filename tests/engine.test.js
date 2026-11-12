@@ -220,7 +220,7 @@ test('exams copy the grid', () => {
   e.grid.categories[0].name = 'changed';
   assert.equal(g.categories[0].name, 'Grammaire');
   assert.equal(g.categories[0].rows.length, 4);
-  assert.deepEqual(emptyResult(), { marks: {}, comments: {}, comment: '' });
+  assert.deepEqual(emptyResult(), { marks: {}, comments: {}, comment: '', partial: {}, adjustments: [] });
 });
 
 test('rounding helpers', () => {
@@ -514,4 +514,45 @@ test('roles: different role grids keep only the rows that match when merged', ()
   e.results.b = { marks: { [r2.rows[0].id]: '6', [r2.rows[1].id]: '6' }, comments: {}, comment: '' };
   mergeRoleGrids(e.grid, e);
   assert.deepEqual(Object.keys(e.results.b.marks), [rowsOf(e.grid)[0].id]);
+});
+
+import { partialPoints } from '../src/lib/bareme.js';
+import { adjustmentTotal } from '../src/lib/scoring.js';
+
+test('level grid: a level partly reached gives half of the step from the level below', () => {
+  const g = newGrid({ name: 'Banksy', type: 'paliers', presetId: '3e' });
+  g.criteria = [newCriterion('Réalisation', 2), newCriterion('Cohérence'), newCriterion('Grammaire'), newCriterion('Lexique', -1), newCriterion('Prononciation', -1)];
+  const [b1, a2p, a2, a1p] = g.levels.map((l) => l.id);
+  const [real, coh] = g.criteria.map((c) => c.id);
+  // Cohérence: 4, 3, 2, 1 points.
+  assert.deepEqual([b1, a2p, a2, a1p].map((l) => partialPoints(g, l, coh)), [3.5, 2.5, 1.5, 0.5]);
+  // Réalisation: 6, 4.5, 3, 1.5 points. Steps of 1.5 are rounded down to the half point.
+  assert.deepEqual([b1, a2p, a2, a1p].map((l) => partialPoints(g, l, real)), [5, 3.5, 2, 0.5]);
+  const all = Object.fromEntries(g.criteria.map((c) => [c.id, b1]));
+  assert.equal(scoreStudent(g, { marks: all }).score, 20);
+  assert.equal(scoreStudent(g, { marks: all, partial: { [coh]: true } }).score, 19.5);
+  // The flag is ignored on a special mark.
+  assert.equal(scoreStudent(g, { marks: { ...all, [coh]: 'R' }, partial: { [coh]: true } }).score, 16);
+});
+
+test('bonus and penalties: added to the mark, which stays between 0 and the target', () => {
+  const g = skills([{ name: 'A', rows: [0, 0] }]);
+  const all = { c0r0: '4', c0r1: '4' };
+  const base = scoreStudent(g, { marks: all }).score;
+  assert.equal(adjustmentTotal({ adjustments: [{ points: 1 }, { points: -0.5 }, { points: 'x' }] }), 0.5);
+  const s = scoreStudent(g, { marks: all, adjustments: [{ reason: 'Participation', points: 1.5 }, { reason: 'Retard', points: -0.5 }] });
+  assert.equal(s.base, base);
+  assert.equal(s.adjust, 1);
+  assert.equal(s.score, base + 1);
+  assert.equal(scoreStudent(g, { marks: { c0r0: '6', c0r1: '6' }, adjustments: [{ points: 2 }] }).score, 20);
+  assert.equal(scoreStudent(g, { marks: { c0r0: '1', c0r1: '1' }, adjustments: [{ points: -3 }] }).score, 0);
+  // Nothing graded or absent: no mark, no bonus.
+  assert.equal(scoreStudent(g, { marks: {}, adjustments: [{ points: 2 }] }).score, null);
+  assert.equal(scoreStudent(g, { marks: { c0r0: 'A', c0r1: 'A' }, adjustments: [{ points: 2 }] }).score, null);
+  // Summary: one column for bonus and penalties.
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.results = { a: { marks: all, adjustments: [{ id: 'x', reason: 'Participation', points: 1 }] }, b: { marks: all } };
+  const html = renderSummary({ exam: e, cls: { name: '5e A' }, students: [{ id: 'a', lastName: 'A', firstName: 'a' }, { id: 'b', lastName: 'B', firstName: 'b' }], lang: 'fr' });
+  assert.match(html, /Bonus \/ malus/);
+  assert.match(html, /<td class="num adj">\+1<\/td>/);
 });

@@ -207,5 +207,5 @@ export function newExam({ name, date, classId, grid }) {
 }
 
 export function emptyResult() {
-  return { marks: {}, comments: {}, comment: '' };
+  return { marks: {}, comments: {}, comment: '', partial: {}, adjustments: [] };
 }

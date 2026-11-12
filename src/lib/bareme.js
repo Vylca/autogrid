@@ -195,6 +195,16 @@ export function cellPoints(grid, levelId, critId, info = scaleInfo(grid)) {
   return cellDefault(grid, levelId, critId, info);
 }
 
+// Level "partly reached": half of the step from the level below, rounded
+// down to the half point. For the lowest level, half of its points.
+export function partialPoints(grid, levelId, critId, info = scaleInfo(grid)) {
+  const i = grid.levels.findIndex((l) => l.id === levelId);
+  if (i === -1) return 0;
+  const cur = Math.round(cellPoints(grid, levelId, critId, info) * 2);
+  const below = grid.levels[i + 1] ? Math.round(cellPoints(grid, grid.levels[i + 1].id, critId, info) * 2) : 0;
+  return Math.floor((cur + below) / 2) / 2;
+}
+
 export function ensureCell(grid, levelId, critId) {
   if (!grid.cells[levelId]) grid.cells[levelId] = {};
   if (!grid.cells[levelId][critId]) {

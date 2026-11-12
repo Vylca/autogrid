@@ -356,6 +356,70 @@ body.bw .chk {
   color: #111;
 }
 
+/* Level partly reached: hatched cell, half the points of the step */
+td.mcell.sel.half {
+  background: repeating-linear-gradient(135deg, #cfdaf8 0 1.6mm, #fff 1.6mm 3.2mm);
+  outline-style: dashed;
+}
+
+body.bw td.mcell.sel.half {
+  background: repeating-linear-gradient(135deg, #e2e2e2 0 1.6mm, #fff 1.6mm 3.2mm);
+}
+
+.mpart {
+  position: absolute;
+  left: 5mm;
+  right: 1.6mm;
+  bottom: 1mm;
+  text-align: right;
+  font-weight: 800;
+  font-size: 7.2pt;
+}
+
+/* Bonus and penalties under the grid */
+.adjust {
+  margin-top: 1.6mm;
+  font-size: 9pt;
+}
+
+.adjust .adj-base {
+  color: #444;
+}
+
+.adjust ul {
+  margin: 0.6mm 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adjust li {
+  margin-top: 0.3mm;
+}
+
+.adj-v {
+  display: inline-block;
+  min-width: 9mm;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.adj-v.plus {
+  color: #1e7a45;
+}
+
+.adj-v.minus {
+  color: #b8322d;
+}
+
+body.bw .adj-v {
+  color: #111;
+}
+
+table.sum td.adj {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .crit-comments {
   margin-top: 1.5mm;
 }

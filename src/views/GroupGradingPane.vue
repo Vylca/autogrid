@@ -8,6 +8,7 @@ import { itemScore, formatNumber, studentAcquisition } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
 import { groupMembers, roleMap, examScore, examAverage, rolesOf } from '../lib/groups.js';
 import Icon from '../components/Icon.vue';
+import Adjustments from '../components/Adjustments.vue';
 import AcqPicker from '../components/AcqPicker.vue';
 
 const props = defineProps({ exam: Object, cls: Object });
@@ -337,6 +338,7 @@ function setRowComment(id, rowId, value) {
               ></textarea>
               <button class="btn small" @click.stop="toggleAbsent(m)">{{ t('grading.markAbsent') }}</button>
             </footer>
+            <Adjustments class="gsheet-adj" compact :result="resultOf(m.studentId)" :ensure="() => ensureResult(m.studentId)" :max="info.target" @click.stop />
           </article>
         </div>
         <button v-if="offset + visible < members.length" class="pager right" :title="t('groups.nextSheets')" @click="offset++"><Icon name="right" /></button>
@@ -642,6 +644,9 @@ function setRowComment(id, rowId, value) {
 }
 .gsheet-foot textarea {
   font-size: 13.5px;
+}
+.gsheet-adj {
+  padding: 0 10px 10px;
 }
 .keys {
   position: sticky;

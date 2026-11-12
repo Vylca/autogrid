@@ -5,7 +5,8 @@ import { t, lang } from '../lib/i18n.js';
 import { sortStudents, emptyResult, SPECIAL_MARKS } from '../lib/model.js';
 import { gridItems, scoreStudent, itemScore, classAverage, formatNumber, studentAcquisition } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
-import { cellPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
+import { cellPoints, partialPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
+import Adjustments from '../components/Adjustments.vue';
 import Icon from '../components/Icon.vue';
 import AcqPicker from '../components/AcqPicker.vue';
 
@@ -73,6 +74,7 @@ function scrollToFocus() {
 
 function setMark(itemId, code, fromClick = false) {
   const r = ensureResult();
+  if (r.partial) delete r.partial[itemId];
   if (fromClick && r.marks[itemId] === code) {
     delete r.marks[itemId];
     return;
@@ -87,7 +89,26 @@ function setMark(itemId, code, fromClick = false) {
 
 function clearMark(itemId) {
   const r = props.exam.results[currentId.value];
-  if (r) delete r.marks[itemId];
+  if (!r) return;
+  delete r.marks[itemId];
+  if (r.partial) delete r.partial[itemId];
+}
+
+// Level grids: a level can be partly reached (half of the step from the level below).
+function isLevel(mark) {
+  return grid.value.type === 'paliers' && grid.value.levels.some((l) => l.id === mark);
+}
+
+function isPartial(itemId) {
+  return !!result.value?.partial?.[itemId] && isLevel(marks.value[itemId]);
+}
+
+function togglePartial(itemId) {
+  const r = ensureResult();
+  if (!isLevel(r.marks[itemId])) return;
+  if (!r.partial) r.partial = {};
+  if (r.partial[itemId]) delete r.partial[itemId];
+  else r.partial[itemId] = true;
 }
 
 function toggleAbsent() {
@@ -97,6 +118,7 @@ function toggleAbsent() {
     if (allAbsent) delete r.marks[it.id];
     else r.marks[it.id] = 'A';
   }
+  r.partial = {};
 }
 
 function clearAll() {
@@ -104,6 +126,7 @@ function clearAll() {
   if (!r || Object.keys(r.marks).length === 0) return;
   if (!window.confirm(t('grading.confirmClear'))) return;
   r.marks = {};
+  r.partial = {};
 }
 
 function moveStudent(delta) {
@@ -142,6 +165,7 @@ function onKey(e) {
   const item = items.value[focusIndex.value];
   if (/^[1-9]$/.test(k)) digit(Number(k));
   else if (/^[adr]$/i.test(k) && item) setMark(item.id, k.toUpperCase());
+  else if (/^p$/i.test(k) && item && grid.value.type === 'paliers') togglePartial(item.id);
   else if (k === 'ArrowDown') moveFocus(1);
   else if (k === 'ArrowUp') moveFocus(-1);
   else if (k === 'ArrowRight' || k === 'PageDown') moveStudent(1);
@@ -174,6 +198,11 @@ function itemPoints(item) {
   if (s.ungraded) return `– / ${formatNumber(item.max, lang.value)}`;
   if (s.excluded) return t('grading.excluded');
   return `${formatNumber(s.earned, lang.value)} / ${formatNumber(item.max, lang.value)}`;
+}
+
+function signed(v) {
+  const n = formatNumber(Math.abs(v), lang.value);
+  return v > 0 ? `+${n}` : `−${n}`;
 }
 
 function specialLabel(code) {
@@ -275,6 +304,9 @@ const studentComment = computed({
           <span class="big">{{ scoreText(currentScore) || '–' }}</span>
           <span class="out" v-if="currentScore?.score !== null">/ {{ formatNumber(info.target, lang) }}</span>
           <span class="state">{{ t('status.' + (currentScore?.status || 'empty')) }}</span>
+          <span v-if="currentScore?.adjust && currentScore?.base !== null" class="state conv">
+            {{ t('grading.adjustLine', { base: formatNumber(currentScore.base, lang), adjust: signed(currentScore.adjust) }) }}
+          </span>
           <span v-if="currentScore?.converted && currentScore?.internalScore !== null" class="state conv">
             {{ t('grading.converted', { score: formatNumber(currentScore.internalScore, lang), max: formatNumber(info.total, lang) }) }}
           </span>
@@ -355,6 +387,7 @@ const studentComment = computed({
                     <span class="hint">/ {{ formatNumber(criterionMax(grid, g.first, info), lang) }}</span>
                     <span class="specials">
                       <button v-for="s in SPECIAL_MARKS" :key="s.code" class="sp" :class="{ on: marks[g.first] === s.code }" :title="t('acq.' + s.key)" @click.stop="setMark(g.first, s.code, true)">{{ s.code }}</button>
+                      <button class="sp half" :class="{ on: isPartial(g.first) }" :disabled="!isLevel(marks[g.first])" :title="t('grading.partialHint')" @click.stop="togglePartial(g.first)">½</button>
                     </span>
                   </div>
                 </th>
@@ -375,6 +408,7 @@ const studentComment = computed({
                     <span class="hint">/ {{ formatNumber(criterionMax(grid, c.id, info), lang) }}</span>
                     <span class="specials">
                       <button v-for="s in SPECIAL_MARKS" :key="s.code" class="sp" :class="{ on: marks[c.id] === s.code }" :title="t('acq.' + s.key)" @click.stop="setMark(c.id, s.code, true)">{{ s.code }}</button>
+                      <button class="sp half" :class="{ on: isPartial(c.id) }" :disabled="!isLevel(marks[c.id])" :title="t('grading.partialHint')" @click.stop="togglePartial(c.id)">½</button>
                     </span>
                   </div>
                 </th>
@@ -391,11 +425,12 @@ const studentComment = computed({
                 v-for="c in grid.criteria"
                 :key="c.id"
                 class="mcell"
-                :class="{ selected: marks[c.id] === lvl.id, focused: itemIndex[c.id] === focusIndex, muted: ['A', 'D', 'R'].includes(marks[c.id]) }"
+                :class="{ selected: marks[c.id] === lvl.id, partial: marks[c.id] === lvl.id && isPartial(c.id), focused: itemIndex[c.id] === focusIndex, muted: ['A', 'D', 'R'].includes(marks[c.id]) }"
                 @click="focusIndex = itemIndex[c.id]; setMark(c.id, lvl.id, true)"
               >
                 <p class="desc">{{ grid.cells?.[lvl.id]?.[c.id]?.descriptor }}</p>
-                <span class="mpts">{{ formatNumber(cellPoints(grid, lvl.id, c.id, info), lang) }} pts</span>
+                <span v-if="marks[c.id] === lvl.id && isPartial(c.id)" class="mpts part" :title="t('grading.partial')">{{ t('grading.partialCell', { pts: formatNumber(partialPoints(grid, lvl.id, c.id, info), lang) }) }}</span>
+                <span v-else class="mpts">{{ formatNumber(cellPoints(grid, lvl.id, c.id, info), lang) }} pts</span>
               </td>
             </tr>
           </tbody>
@@ -417,11 +452,13 @@ const studentComment = computed({
         <span>{{ t('grading.comment') }}</span>
         <textarea v-model="studentComment" class="input" rows="2" :placeholder="t('grading.commentPlaceholder')"></textarea>
       </label>
+      <Adjustments class="adjustments" :result="result" :ensure="ensureResult" :max="info.target" />
 
       <footer class="keys">
         <span v-if="grid.type === 'competences'"><span class="kbd">1</span>…<span class="kbd">6</span> {{ t('keys.level') }}</span>
         <span v-else><span class="kbd">1</span>…<span class="kbd">{{ grid.levels.length }}</span> {{ t('keys.palier') }}</span>
         <span><span class="kbd">A</span> <span class="kbd">D</span> <span class="kbd">R</span> {{ t('keys.special') }}</span>
+        <span v-if="grid.type === 'paliers'"><span class="kbd">P</span> {{ t('keys.partial') }}</span>
         <span><span class="kbd">↑</span> <span class="kbd">↓</span> {{ grid.type === 'competences' ? t('keys.category') : t('keys.criterion') }}</span>
         <span><span class="kbd">←</span> <span class="kbd">→</span> {{ t('keys.student') }}</span>
         <span><span class="kbd">⌫</span> {{ t('keys.clear') }}</span>
@@ -738,9 +775,14 @@ const studentComment = computed({
 }
 .crit-sub {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 4px;
   margin-top: 4px;
+}
+.crit-sub .hint {
+  white-space: nowrap;
 }
 .specials {
   display: flex;
@@ -762,6 +804,18 @@ const studentComment = computed({
   background: var(--ink-2);
   border-color: var(--ink);
   color: #fff;
+}
+.sp.half {
+  margin-left: 4px;
+  font-size: 13px;
+}
+.sp.half.on {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.sp:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .lvl-cell-m {
   padding: 10px 8px;
@@ -793,6 +847,13 @@ const studentComment = computed({
 .mcell.selected .mpts {
   color: #fff;
 }
+.mcell.selected.partial {
+  background: repeating-linear-gradient(135deg, var(--accent) 0 9px, color-mix(in srgb, var(--accent) 72%, white) 9px 18px);
+}
+.mpts.part {
+  left: 8px;
+  text-align: right;
+}
 .mcell.muted {
   opacity: 0.45;
 }
@@ -822,6 +883,9 @@ const studentComment = computed({
 
 .student-comment {
   margin-top: 16px;
+}
+.adjustments {
+  margin-top: 14px;
 }
 
 .keys {

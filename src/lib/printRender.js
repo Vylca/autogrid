@@ -1,7 +1,7 @@
 // Builds the HTML of one printable grid block. The print window paginates the blocks.
 import { ACQ_LEVELS, SPECIAL_MARKS, acqLevel } from './model.js';
 import { gridItems, scoreStudent, itemScore, formatNumber, studentAcquisition } from './scoring.js';
-import { scaleInfo, cellPoints, criterionMax, usesRoles } from './bareme.js';
+import { scaleInfo, cellPoints, partialPoints, criterionMax, usesRoles } from './bareme.js';
 import { tFor, formatDateFor } from './i18n.js';
 
 function esc(s) {
@@ -18,6 +18,11 @@ function nl2br(s) {
 
 const CHECK_SVG =
   '<svg class="chk" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+function signed(v, lang) {
+  const n = formatNumber(Math.abs(v), lang);
+  return v > 0 ? `+${n}` : v < 0 ? `−${n}` : '0';
+}
 
 export function dots(code) {
   // Six-step meter readable in black and white.
@@ -175,13 +180,19 @@ function paliersTable({ grid, result, lang, blank, info }) {
   } else {
     thead = `<tr><th class="lvl-h">${esc(tFor(lang, 'print.level'))}</th>${grid.criteria.map((c) => `<th>${critHead(c)}</th>`).join('')}</tr>`;
   }
+  const partial = (!blank && result?.partial) || {};
   let tbody = '';
   for (const lvl of grid.levels) {
     tbody += `<tr><td class="lvl">${esc(lvl.level)}</td>`;
     for (const c of grid.criteria) {
       const selected = !blank && marks[c.id] === lvl.id;
+      const half = selected && partial[c.id];
       const desc = grid.cells?.[lvl.id]?.[c.id]?.descriptor || '';
-      tbody += `<td class="mcell${selected ? ' sel' : ''}">${selected ? CHECK_SVG : ''}<div class="desc">${nl2br(desc)}</div><div class="mpts">${esc(formatNumber(cellPoints(grid, lvl.id, c.id, info), lang))} pts</div></td>`;
+      const pts = `${esc(formatNumber(cellPoints(grid, lvl.id, c.id, info), lang))} pts`;
+      const foot = half
+        ? `<div class="mpart">${esc(tFor(lang, 'grading.partial'))} : ${esc(formatNumber(partialPoints(grid, lvl.id, c.id, info), lang))} pts</div>`
+        : `<div class="mpts">${pts}</div>`;
+      tbody += `<td class="mcell${selected ? ' sel' : ''}${half ? ' half' : ''}">${selected ? CHECK_SVG : ''}<div class="desc">${nl2br(desc)}</div>${foot}</td>`;
     }
     tbody += '</tr>';
   }
@@ -213,6 +224,17 @@ export function renderGridBlock({ exam = null, grid, student = null, result = nu
         ? tFor(lang, 'print.converted', { score: formatNumber(score.internalScore, lang), max: formatNumber(info.total, lang), target: formatNumber(info.target, lang) })
         : tFor(lang, 'print.convertedBlank', { max: formatNumber(info.total, lang), target: formatNumber(info.target, lang) });
     html += `<div class="conv-line">${esc(line)}</div>`;
+  }
+  if (score && score.adjust && score.base !== null) {
+    const lines = (result?.adjustments || [])
+      .filter((a) => Number(a.points))
+      .map((a) => {
+        const reason = (a.reason || '').trim() || tFor(lang, a.points > 0 ? 'grading.addBonus' : 'grading.addMalus');
+        return `<li><span class="adj-v ${a.points > 0 ? 'plus' : 'minus'}">${esc(signed(Number(a.points), lang))}</span> ${esc(reason)}</li>`;
+      })
+      .join('');
+    const base = tFor(lang, 'print.gridScore', { score: formatNumber(score.base, lang), max: formatNumber(info.target, lang) });
+    html += `<div class="adjust"><span class="c-label">${esc(tFor(lang, 'grading.adjustments'))}</span> <span class="adj-base">${esc(base)}</span><ul>${lines}</ul></div>`;
   }
   if (!blank && result?.comment) {
     html += `<div class="comment"><span class="c-label">${esc(tFor(lang, 'print.comment'))}</span> ${nl2br(result.comment)}</div>`;

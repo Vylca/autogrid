@@ -17,13 +17,13 @@ function esc(s) {
 }
 
 // Points of one category (or criterion) for one student: { earned, possible, complete }.
-function partPoints(grid, info, items, marks) {
+function partPoints(grid, info, items, marks, partial = {}) {
   let earned = 0;
   let possible = 0;
   let graded = 0;
   let ungraded = 0;
   for (const it of items) {
-    const s = itemScore(grid, it, marks[it.id], info);
+    const s = itemScore(grid, it, marks[it.id], info, !!partial[it.id]);
     if (s.ungraded) {
       ungraded++;
       continue;
@@ -110,6 +110,9 @@ export function renderSummary({ exam, cls, students, lang }) {
   let head = `<th class="name">${esc(T('print.student'))}</th>`;
   if (roles) head += `<th>${esc(T('print.role'))}</th>`;
   head += `<th class="num">${esc(T('print.mark'))}<br><small>/ ${target}</small></th>`;
+  // Bonus and penalties: one column when a student has some.
+  const withAdjust = students.some((s) => (exam.results[s.id]?.adjustments || []).some((a) => Number(a.points)));
+  if (withAdjust) head += `<th class="num">${esc(T('print.adjustCol'))}</th>`;
   if (!isPal) head += `<th>${esc(T('acq.average'))}</th>`;
   for (const p of parts) {
     head += `<th class="part" colspan="${isPal ? 1 : 2}">${esc(p.name)}<br><small>/ ${fmt(p.max)}</small></th>`;
@@ -146,9 +149,13 @@ export function renderSummary({ exam, cls, students, lang }) {
     let tr = `<tr><td class="name"><strong>${esc(s.lastName)}</strong> ${esc(s.firstName)}</td>`;
     if (roles) tr += `<td class="role">${esc(roleNames[roleId] || '')}</td>`;
     tr += `<td class="num mark">${mark}</td>`;
+    if (withAdjust) {
+      const v = sc.score !== null && sc.adjust ? (sc.adjust > 0 ? `+${fmt(sc.adjust)}` : `−${fmt(-sc.adjust)}`) : '';
+      tr += `<td class="num adj">${esc(v)}</td>`;
+    }
     if (!isPal) tr += acqCell(acq?.overall, lang, 'sum');
     for (const p of parts) {
-      const pp = partPoints(grid, info, p.items, marks);
+      const pp = partPoints(grid, info, p.items, marks, result?.partial);
       const st = partStats[p.id];
       let txt = '<span class="muted">–</span>';
       const special = p.items.map((it) => marks[it.id]).find((m) => m === 'A' || m === 'D');
@@ -162,7 +169,8 @@ export function renderSummary({ exam, cls, students, lang }) {
         }
       }
       if (isPal) {
-        const lvl = levelName(grid, marks[p.id]);
+        let lvl = levelName(grid, marks[p.id]);
+        if (lvl && result?.partial?.[p.id]) lvl += `, ${T('grading.partialShort')}`;
         tr += `<td class="num">${txt}${lvl ? ` <small>(${esc(lvl)})</small>` : ''}</td>`;
       } else {
         const a = acq?.byCategory[p.id];
@@ -198,6 +206,7 @@ export function renderSummary({ exam, cls, students, lang }) {
   let foot = `<tr class="avg"><td class="name">${esc(T('print.classAverage'))}</td>`;
   if (roles) foot += '<td></td>';
   foot += `<td class="num mark"><strong>${avg === null ? '–' : esc(fmt(roundTo(avg, 0.01)))}</strong></td>`;
+  if (withAdjust) foot += '<td></td>';
   if (!isPal) foot += acqCell(meanAcquisition(overallAcqs), lang, 'sum');
   for (const p of parts) {
     const st = partStats[p.id];
@@ -216,7 +225,7 @@ export function renderSummary({ exam, cls, students, lang }) {
   });
   foot += '</tr>';
 
-  const columns = 2 + (roles ? 1 : 0) + (isPal ? 0 : 1) + parts.length * (isPal ? 1 : 2) + picked.length;
+  const columns = 2 + (roles ? 1 : 0) + (withAdjust ? 1 : 0) + (isPal ? 0 : 1) + parts.length * (isPal ? 1 : 2) + picked.length;
   const meta = [cls?.name, exam.date ? formatDateFor(lang, exam.date) : '', grid.name, T('print.nStudents', { n: students.length })]
     .filter(Boolean)
     .map((x) => `<span>${esc(x)}</span>`)

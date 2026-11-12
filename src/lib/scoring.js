@@ -1,5 +1,5 @@
 // Score computation for one student on one grid.
-import { scaleInfo, criterionMax, colorPoints, cellPoints, categoriesOf, usesRoles } from './bareme.js';
+import { scaleInfo, criterionMax, colorPoints, cellPoints, partialPoints, categoriesOf, usesRoles } from './bareme.js';
 
 // Marks are always whole or half points.
 export const ROUND_STEP = 0.5;
@@ -21,7 +21,7 @@ export function gridItems(grid, info = scaleInfo(grid), roleId = undefined) {
 
 // Group work: a student who is not in a group has no sheet.
 export function noRoleScore(info) {
-  return { score: null, internalScore: null, max: info.target, internalMax: info.total, converted: false, earned: 0, possible: 0, graded: 0, ungraded: 0, total: 0, status: 'noRole' };
+  return { score: null, base: null, adjust: 0, internalScore: null, max: info.target, internalMax: info.total, converted: false, earned: 0, possible: 0, graded: 0, ungraded: 0, total: 0, status: 'noRole' };
 }
 
 export function roundTo(value, step) {
@@ -33,12 +33,14 @@ export function roundTo(value, step) {
 
 // Points earned for one item.
 // counted=false means excluded (A, D) or not graded yet.
-export function itemScore(grid, item, mark, info = scaleInfo(grid)) {
+// partial: level grids only, the level is partly reached.
+export function itemScore(grid, item, mark, info = scaleInfo(grid), partial = false) {
   if (mark === undefined || mark === null || mark === '') return { earned: 0, counted: false, ungraded: true };
   if (mark === 'A' || mark === 'D') return { earned: 0, counted: false, excluded: true };
   if (mark === 'R') return { earned: 0, counted: true };
   if (grid.type === 'paliers') {
     if (!grid.levels.some((l) => l.id === mark)) return { earned: 0, counted: false, ungraded: true };
+    if (partial) return { earned: partialPoints(grid, mark, item.id, info), counted: true, partial: true };
     return { earned: cellPoints(grid, mark, item.id, info), counted: true };
   }
   const earned = colorPoints(item.max, mark);
@@ -53,6 +55,7 @@ export function scoreStudent(grid, result, roleId = undefined) {
   if (usesRoles(grid) && !categoriesOf(grid).some((c) => c.id === roleId)) return noRoleScore(info);
   const items = gridItems(grid, info, usesRoles(grid) ? roleId : undefined);
   const marks = result?.marks || {};
+  const partial = result?.partial || {};
   let earned = 0;
   let possible = 0;
   let graded = 0;
@@ -61,7 +64,7 @@ export function scoreStudent(grid, result, roleId = undefined) {
   let exempt = 0;
   for (const item of items) {
     const mark = marks[item.id];
-    const s = itemScore(grid, item, mark, info);
+    const s = itemScore(grid, item, mark, info, !!partial[item.id]);
     if (s.ungraded) {
       ungraded++;
       continue;
@@ -93,8 +96,14 @@ export function scoreStudent(grid, result, roleId = undefined) {
     score = 0;
     internalScore = 0;
   }
+  // Bonus and penalties, on the mark out of the target. The mark stays between 0 and the target.
+  const adjust = adjustmentTotal(result);
+  const base = score;
+  if (score !== null && adjust !== 0) score = Math.min(info.target, Math.max(0, roundTo(score + adjust, ROUND_STEP)));
   return {
     score,
+    base,
+    adjust,
     internalScore,
     max: info.target,
     internalMax: info.total,
@@ -106,6 +115,12 @@ export function scoreStudent(grid, result, roleId = undefined) {
     total: items.length,
     status,
   };
+}
+
+export function adjustmentTotal(result) {
+  let total = 0;
+  for (const a of result?.adjustments || []) if (Number.isFinite(Number(a.points))) total += Number(a.points);
+  return roundTo(total, ROUND_STEP);
 }
 
 export function classAverage(grid, results, studentIds) {
