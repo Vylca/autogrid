@@ -556,3 +556,10 @@ test('bonus and penalties: added to the mark, which stays between 0 and the targ
   assert.match(html, /Bonus \/ malus/);
   assert.match(html, /<td class="num adj">\+1<\/td>/);
 });
+
+import { markLevel } from '../src/lib/scoring.js';
+
+test('level grids: the colour follows the mark', () => {
+  assert.deepEqual([0, 4, 8, 10, 12, 16, 20].map((v) => markLevel(v, 20)), ['1', '2', '3', '4', '4', '5', '6']);
+  assert.equal(markLevel(null, 20), null);
+});

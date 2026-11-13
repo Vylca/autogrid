@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../lib/store.js';
 import { t, lang } from '../lib/i18n.js';
 import { sortStudents, emptyResult, SPECIAL_MARKS, acqLevel } from '../lib/model.js';
-import { gridItems, scoreStudent, itemScore, classAverage, formatNumber, studentAcquisition } from '../lib/scoring.js';
+import { gridItems, scoreStudent, itemScore, classAverage, formatNumber, studentAcquisition, markLevel } from '../lib/scoring.js';
 import AcqBadge from '../components/AcqBadge.vue';
 import { cellPoints, partialPoints, criterionMax, scaleInfo } from '../lib/bareme.js';
 import Adjustments from '../components/Adjustments.vue';
@@ -34,20 +34,25 @@ const scores = computed(() => {
 });
 const currentScore = computed(() => scores.value[currentId.value] || null);
 const acq = computed(() => studentAcquisition(grid.value, result.value));
-// Roster dot: shape for the progress, colour of the average acquisition.
+// Colour of a student: the average acquisition, or for a level grid, the mark.
+function colorLevel(id) {
+  if (grid.value.type === 'paliers') return acqLevel(markLevel(scores.value[id]?.score, info.value.target));
+  return acqLevel(studentAcquisition(grid.value, props.exam.results[id])?.overall?.code);
+}
+// Roster dot: shape for the progress, colour of the student.
 const dots = computed(() => {
   const out = {};
   for (const s of students.value) {
-    const lvl = acqLevel(studentAcquisition(grid.value, props.exam.results[s.id])?.overall?.code);
+    const lvl = colorLevel(s.id);
     if (lvl) out[s.id] = { '--dot': lvl.color };
   }
   return out;
 });
 const dotColor = (id) => dots.value[id] || null;
 
-// The student's card takes the colour of the average acquisition.
+// The student's card takes the colour of the student.
 const cardColor = computed(() => {
-  const lvl = acqLevel(acq.value?.overall?.code);
+  const lvl = currentId.value ? colorLevel(currentId.value) : null;
   return lvl ? { '--acq': lvl.color } : null;
 });
 const average = computed(() => classAverage(grid.value, props.exam.results, students.value.map((s) => s.id)));
@@ -608,7 +613,7 @@ const studentComment = computed({
 }
 .score-box {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: auto 1fr;
   align-items: baseline;
   column-gap: 6px;
   min-width: 120px;

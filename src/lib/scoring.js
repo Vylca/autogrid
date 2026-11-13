@@ -117,6 +117,13 @@ export function scoreStudent(grid, result, roleId = undefined) {
   };
 }
 
+// Colour level of a mark, for grids without acquisition (level grids):
+// the inverse of colorPoints, 0 points is level 1, the target is level 6.
+export function markLevel(score, max) {
+  if (score === null || score === undefined || !(max > 0)) return null;
+  return String(Math.min(6, Math.max(1, Math.round(1 + (5 * score) / max))));
+}
+
 export function adjustmentTotal(result) {
   let total = 0;
   for (const a of result?.adjustments || []) if (Number.isFinite(Number(a.points))) total += Number(a.points);
