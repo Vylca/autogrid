@@ -383,6 +383,7 @@ export async function runSelftest(info) {
   await window.api.selftestLog('group', d.c3.students.map((s) => ({ name: s.firstName, ...scoreStudent(d.eg.grid, d.eg.results[s.id], roleMap(d.eg)[s.id]?.roleId) })));
   await exportExamPdf(d.e5, d.c5, { studentIds: ids5, layout: 'summary', color: true, orientation: 'portrait', outputPath: `${dir}/summary-comp.pdf` });
   await exportExamPdf(d.e3, d.c3, { studentIds: ids3, layout: 'summary', color: false, orientation: 'portrait', outputPath: `${dir}/summary-pal-bw.pdf` });
+  await exportExamPdf(d.e3, d.c3, { studentIds: ids3, layout: 'summary', color: true, orientation: 'landscape', outputPath: `${dir}/summary-pal.pdf` });
   await exportExamPdf(d.e5, d.c5, { studentIds: ids5, layout: 'summary', color: false, orientation: 'portrait', outputPath: `${dir}/summary-comp-bw.pdf` });
   d.eg.grid.categories[0].rows[0].inSummary = true;
   d.eg.grid.categories[1].rows[0].inSummary = true;

@@ -611,6 +611,23 @@ table.sum td.rc.first {
   border-left: 1.6px solid #111;
 }
 
+/* Level grids: criterion cell in the colour of its points */
+table.sum td.acq.pal .pal-v {
+  display: block;
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+table.sum td.acq.pal .pal-v small {
+  font-size: 7.4pt;
+}
+
+table.sum td.acq.pal .acq-label {
+  margin-top: 0.2mm;
+  font-size: 7pt;
+  opacity: 0.9;
+}
+
 table.sum td.acq.rc .acq-val {
   display: block;
   margin-top: 0.3mm;

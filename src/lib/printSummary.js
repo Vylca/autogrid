@@ -2,7 +2,7 @@
 // acquisition of each student, per category when there are some, the skills
 // ticked to appear on their own, and the class average at the bottom.
 import { scaleInfo, usesRoles, hasRoles } from './bareme.js';
-import { gridItems, itemScore, formatNumber, studentAcquisition, meanAcquisition, acquisitionOf, roundTo } from './scoring.js';
+import { gridItems, itemScore, formatNumber, studentAcquisition, meanAcquisition, acquisitionOf, roundTo, markLevel } from './scoring.js';
 import { examScore, examAverage, roleMap, rolesOf } from './groups.js';
 import { acqLevel, SPECIAL_MARKS } from './model.js';
 import { acqCell, dots } from './printRender.js';
@@ -75,6 +75,13 @@ export function rowMark(grid, info, col, marks, roleId) {
 function shortText(text, max = 70) {
   const one = String(text || '').replace(/\s+/g, ' ').trim();
   return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
+}
+
+// Level grids: a criterion cell in the colour of its points (0 is level 1, the maximum is level 6).
+function palCell(T, content, earned, max) {
+  const lvl = acqLevel(markLevel(earned, max));
+  if (!lvl) return `<td class="num">${content}</td>`;
+  return `<td class="acq sum pal" style="--c:${lvl.color};--tc:${lvl.text}"><span class="pal-v">${content}</span><span class="acq-label">${esc(T(`acq.${lvl.key}`))}</span>${dots(lvl.code)}</td>`;
 }
 
 function levelName(grid, mark) {
@@ -173,7 +180,8 @@ export function renderSummary({ exam, cls, students, lang }) {
       if (isPal) {
         let lvl = levelName(grid, marks[p.id]);
         if (lvl && !result?.offTopic && result?.partial?.[p.id]) lvl += `, ${T('grading.partialShort')}`;
-        tr += `<td class="num">${txt}${lvl ? ` <small>(${esc(lvl)})</small>` : ''}</td>`;
+        const content = `${txt}${lvl ? ` <small>(${esc(lvl)})</small>` : ''}`;
+        tr += pp.graded && pp.possible > 0 ? palCell(T, content, (pp.earned / pp.possible) * p.max, p.max) : `<td class="num">${content}</td>`;
       } else {
         const a = acq?.byCategory[p.id];
         if (a) st.acqs.push(a);
@@ -213,7 +221,7 @@ export function renderSummary({ exam, cls, students, lang }) {
   for (const p of parts) {
     const st = partStats[p.id];
     const v = st.n ? esc(fmt(st.sum / st.n, 1)) : '–';
-    foot += `<td class="num">${v}</td>`;
+    foot += isPal && st.n ? palCell(T, v, st.sum / st.n, p.max) : `<td class="num">${v}</td>`;
     if (!isPal) foot += acqCell(meanAcquisition(st.acqs), lang, 'sum small');
   }
   picked.forEach((it, i) => {

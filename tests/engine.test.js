@@ -607,3 +607,15 @@ test('organize: assessments by class, level, grid and theme', () => {
   assert.deepEqual(examThemes(e1, [gB]), ['Heroes', 'Environment']);
   assert.deepEqual(allThemes([gA, gB]), ['Environment', 'Heroes']);
 });
+
+test('summary of a level grid: each criterion in the colour of its points', () => {
+  const g = newGrid({ name: 'CE', type: 'paliers', presetId: '3e' });
+  g.criteria = [newCriterion('Compréhension globale')];
+  const [top, , , low] = g.levels.map((l) => l.id);
+  const c = g.criteria[0].id;
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.results = { a: { marks: { [c]: top } }, b: { marks: { [c]: low } } };
+  const html = renderSummary({ exam: e, cls: { name: '5B' }, students: [{ id: 'a', lastName: 'A', firstName: 'a' }, { id: 'b', lastName: 'B', firstName: 'b' }], lang: 'fr' });
+  assert.match(html, /class="acq sum pal" style="--c:[^"]+"><span class="pal-v">20 <small>\(B1\)<\/small><\/span><span class="acq-label">Très bonne maîtrise/);
+  assert.match(html, /<span class="pal-v">5 <small>\(A1\+\)<\/small><\/span><span class="acq-label">Début de maîtrise/);
+});
