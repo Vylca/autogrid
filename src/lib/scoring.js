@@ -49,7 +49,7 @@ export function itemScore(grid, item, mark, info = scaleInfo(grid), partial = fa
 }
 
 // status: 'empty' (nothing graded), 'partial', 'complete', 'absent', 'exempt',
-// 'noRole' (group work, student not placed in a group).
+// 'offtopic' (off topic: the mark is 0), 'noRole' (group work, student not placed in a group).
 export function scoreStudent(grid, result, roleId = undefined) {
   const info = scaleInfo(grid);
   if (usesRoles(grid) && !categoriesOf(grid).some((c) => c.id === roleId)) return noRoleScore(info);
@@ -97,9 +97,17 @@ export function scoreStudent(grid, result, roleId = undefined) {
     internalScore = 0;
   }
   // Bonus and penalties, on the mark out of the target. The mark stays between 0 and the target.
-  const adjust = adjustmentTotal(result);
-  const base = score;
+  let adjust = adjustmentTotal(result);
+  let base = score;
   if (score !== null && adjust !== 0) score = Math.min(info.target, Math.max(0, roundTo(score + adjust, ROUND_STEP)));
+  // Off topic: 0, whatever the marks and the bonus.
+  if (result?.offTopic) {
+    status = 'offtopic';
+    score = 0;
+    base = 0;
+    adjust = 0;
+    internalScore = 0;
+  }
   return {
     score,
     base,
@@ -124,6 +132,11 @@ export function markLevel(score, max) {
   return String(Math.min(6, Math.max(1, Math.round(1 + (5 * score) / max))));
 }
 
+// A mark that counts in the class average.
+export function isDone(s) {
+  return s.status === 'complete' || s.status === 'offtopic';
+}
+
 export function adjustmentTotal(result) {
   let total = 0;
   for (const a of result?.adjustments || []) if (Number.isFinite(Number(a.points))) total += Number(a.points);
@@ -134,7 +147,7 @@ export function classAverage(grid, results, studentIds) {
   const scores = [];
   for (const id of studentIds) {
     const s = scoreStudent(grid, results[id]);
-    if (s.status === 'complete' && s.score !== null) scores.push(s.score);
+    if (isDone(s) && s.score !== null) scores.push(s.score);
   }
   if (scores.length === 0) return null;
   return scores.reduce((a, b) => a + b, 0) / scores.length;

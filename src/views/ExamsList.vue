@@ -22,7 +22,7 @@ function stats(exam) {
   let done = 0;
   for (const id of ids) {
     const s = examScore(exam, id, map);
-    if (s.status === 'complete' || s.status === 'absent' || s.status === 'exempt') done++;
+    if (s.status === 'complete' || s.status === 'offtopic' || s.status === 'absent' || s.status === 'exempt') done++;
   }
   const avg = examAverage(exam, ids);
   return { total: ids.length, done, avg, cls };

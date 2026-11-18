@@ -3,7 +3,7 @@
 // One sheet per role (roleGrids): each category is a role.
 // exam.groups = [{ id, slots: { [roleId]: [studentId | null, ...] } }]
 import { uid, newRole, cloneDeep } from './model.js';
-import { scoreStudent, noRoleScore } from './scoring.js';
+import { scoreStudent, noRoleScore, isDone } from './scoring.js';
 import { scaleInfo, usesRoles } from './bareme.js';
 
 // Group work without roles: every member has the same sheet. The group then
@@ -92,7 +92,7 @@ export function examAverage(exam, studentIds) {
   const scores = [];
   for (const id of studentIds) {
     const s = examScore(exam, id, map);
-    if (s.status === 'complete' && s.score !== null) scores.push(s.score);
+    if (isDone(s) && s.score !== null) scores.push(s.score);
   }
   if (!scores.length) return null;
   return scores.reduce((a, b) => a + b, 0) / scores.length;

@@ -133,14 +133,16 @@ export function renderSummary({ exam, cls, students, lang }) {
   const rowStats = Object.fromEntries(picked.map((it) => [it.id, { sum: 0, n: 0, acqs: [] }]));
   for (const s of students) {
     const result = exam.results[s.id];
-    const marks = result?.marks || {};
+    // Off topic: the mark is 0, the details are left out.
+    const marks = result?.offTopic ? {} : result?.marks || {};
     const roleId = map?.[s.id]?.roleId;
     const sc = examScore(exam, s.id, map);
-    const acq = isPal ? null : studentAcquisition(grid, result, roleId);
+    const acq = isPal || sc.status === 'offtopic' ? null : studentAcquisition(grid, result, roleId);
     if (acq?.overall && sc.status !== 'absent' && sc.status !== 'exempt') overallAcqs.push(acq.overall);
     let mark;
     if (sc.status === 'absent') mark = `<span class="muted">${esc(T('acq.absent'))}</span>`;
     else if (sc.status === 'exempt') mark = `<span class="muted">${esc(T('acq.exempt'))}</span>`;
+    else if (sc.status === 'offtopic') mark = `<strong>0</strong> <small class="muted">${esc(T('grading.offTopic'))}</small>`;
     else if (sc.score === null) mark = '<span class="muted">–</span>';
     else if (sc.status === 'partial') {
       partial = true;
@@ -155,7 +157,7 @@ export function renderSummary({ exam, cls, students, lang }) {
     }
     if (!isPal) tr += acqCell(acq?.overall, lang, 'sum');
     for (const p of parts) {
-      const pp = partPoints(grid, info, p.items, marks, result?.partial);
+      const pp = partPoints(grid, info, p.items, marks, result?.offTopic ? {} : result?.partial);
       const st = partStats[p.id];
       let txt = '<span class="muted">–</span>';
       const special = p.items.map((it) => marks[it.id]).find((m) => m === 'A' || m === 'D');
@@ -170,7 +172,7 @@ export function renderSummary({ exam, cls, students, lang }) {
       }
       if (isPal) {
         let lvl = levelName(grid, marks[p.id]);
-        if (lvl && result?.partial?.[p.id]) lvl += `, ${T('grading.partialShort')}`;
+        if (lvl && !result?.offTopic && result?.partial?.[p.id]) lvl += `, ${T('grading.partialShort')}`;
         tr += `<td class="num">${txt}${lvl ? ` <small>(${esc(lvl)})</small>` : ''}</td>`;
       } else {
         const a = acq?.byCategory[p.id];

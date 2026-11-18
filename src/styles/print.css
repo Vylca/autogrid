@@ -376,6 +376,25 @@ body.bw td.mcell.sel.half {
   font-size: 7.2pt;
 }
 
+/* Off topic: under the mark in the sheet header */
+.g-head .offtopic {
+  margin-top: 0.6mm;
+  padding: 0.4mm 2mm;
+  border: 1.2px solid #b8322d;
+  border-radius: 1mm;
+  color: #b8322d;
+  font-weight: 800;
+  font-size: 8.5pt;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body.bw .g-head .offtopic {
+  border-color: #111;
+  color: #111;
+}
+
 /* Bonus and penalties under the grid */
 .adjust {
   margin-top: 1.6mm;

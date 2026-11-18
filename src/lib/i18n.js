@@ -56,6 +56,7 @@ const fr = {
   'grading.prev': 'Élève précédent',
   'grading.next': 'Élève suivant',
   'grading.markAbsent': 'Absent',
+  'grading.offTopic': "Hors sujet",
   'grading.clear': 'Tout effacer',
   'grading.confirmClear': 'Effacer toute la correction de cet élève ?',
   'grading.notGraded': 'Pas encore évalué',
@@ -84,6 +85,7 @@ const fr = {
   'status.empty': 'Non corrigé',
   'status.partial': 'En cours',
   'status.complete': 'Corrigé',
+  'status.offtopic': "Hors sujet",
   'status.absent': 'Absent',
   'status.exempt': 'Dispensé',
 
@@ -428,6 +430,7 @@ const en = {
   'grading.prev': 'Previous student',
   'grading.next': 'Next student',
   'grading.markAbsent': 'Absent',
+  'grading.offTopic': "Off topic",
   'grading.clear': 'Clear all',
   'grading.confirmClear': "Clear all of this student's grading?",
   'grading.notGraded': 'Not assessed yet',
@@ -456,6 +459,7 @@ const en = {
   'status.empty': 'Not graded',
   'status.partial': 'In progress',
   'status.complete': 'Graded',
+  'status.offtopic': "Off topic",
   'status.absent': 'Absent',
   'status.exempt': 'Exempt',
 

@@ -72,13 +72,14 @@ function header({ exam, grid, student, score, lang, blank, className, info, acq 
     else v = esc(formatNumber(score.score, lang));
     const showMax = score.status !== 'absent' && score.status !== 'exempt';
     scoreHtml = `<div class="score"><span class="v">${v}</span>${showMax ? `<span class="o">/ ${maxTxt}</span>` : ''}</div>`;
+    if (score.status === 'offtopic') scoreHtml += `<div class="offtopic">${esc(tFor(lang, 'grading.offTopic'))}</div>`;
   }
   return `<div class="g-head">
     <div class="g-left">
       <div class="g-title">${esc(title || tFor(lang, 'common.untitled'))}</div>
       ${metaParts.length ? `<div class="g-meta">${metaParts.join('')}</div>` : ''}
     </div>
-    <div class="g-right">${who}${blank ? '' : acqHead(acq?.overall, lang)}${scoreHtml}</div>
+    <div class="g-right">${who}${blank || score?.status === 'offtopic' ? '' : acqHead(acq?.overall, lang)}${scoreHtml}</div>
   </div>`;
 }
 

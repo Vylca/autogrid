@@ -36,6 +36,7 @@ const currentScore = computed(() => scores.value[currentId.value] || null);
 const acq = computed(() => studentAcquisition(grid.value, result.value));
 // Colour of a student: the average acquisition, or for a level grid, the mark.
 function colorLevel(id) {
+  if (scores.value[id]?.status === 'offtopic') return acqLevel('1');
   if (grid.value.type === 'paliers') return acqLevel(markLevel(scores.value[id]?.score, info.value.target));
   return acqLevel(studentAcquisition(grid.value, props.exam.results[id])?.overall?.code);
 }
@@ -132,8 +133,16 @@ function togglePartial(itemId) {
   else r.partial[itemId] = true;
 }
 
+// Off topic: the mark is 0, whatever the colours.
+function toggleOffTopic() {
+  const r = ensureResult();
+  if (r.offTopic) delete r.offTopic;
+  else r.offTopic = true;
+}
+
 function toggleAbsent() {
   const r = ensureResult();
+  delete r.offTopic;
   const allAbsent = items.value.length > 0 && items.value.every((it) => r.marks[it.id] === 'A');
   for (const it of items.value) {
     if (allAbsent) delete r.marks[it.id];
@@ -315,6 +324,7 @@ const studentComment = computed({
           <button class="icon-btn" :disabled="currentPos <= 0" :title="t('grading.prev')" @click="moveStudent(-1)"><Icon name="left" /></button>
           <button class="icon-btn" :disabled="currentPos >= students.length - 1" :title="t('grading.next')" @click="moveStudent(1)"><Icon name="right" /></button>
           <button class="btn small" @click="toggleAbsent">{{ t('grading.markAbsent') }}</button>
+          <button class="btn small" :class="{ toggled: result?.offTopic }" :aria-pressed="!!result?.offTopic" @click="toggleOffTopic">{{ t('grading.offTopic') }}</button>
           <button class="btn small ghost" @click="clearAll">{{ t('grading.clear') }}</button>
         </div>
         <div v-if="acq" class="acq-box">
@@ -328,7 +338,7 @@ const studentComment = computed({
           <span v-if="currentScore?.adjust && currentScore?.base !== null" class="state conv">
             {{ t('grading.adjustLine', { base: formatNumber(currentScore.base, lang), adjust: signed(currentScore.adjust) }) }}
           </span>
-          <span v-if="currentScore?.converted && currentScore?.internalScore !== null" class="state conv">
+          <span v-if="currentScore?.converted && currentScore?.internalScore !== null && currentScore?.status !== 'offtopic'" class="state conv">
             {{ t('grading.converted', { score: formatNumber(currentScore.internalScore, lang), max: formatNumber(info.total, lang) }) }}
           </span>
         </div>
@@ -568,7 +578,8 @@ const studentComment = computed({
 .status.has-acq.st-partial {
   background: linear-gradient(90deg, var(--dot) 50%, transparent 50%);
 }
-.status.has-acq.st-complete {
+.status.has-acq.st-complete,
+.status.has-acq.st-offtopic {
   background: var(--dot);
 }
 .roster-foot {
@@ -644,6 +655,11 @@ const studentComment = computed({
 .score-box.empty,
 .score-box.partial {
   border-color: var(--rule-strong);
+}
+.btn.toggled {
+  background: var(--ink-2);
+  border-color: var(--ink);
+  color: #fff;
 }
 .score-box.has-acq {
   border-color: var(--acq);

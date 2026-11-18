@@ -557,9 +557,24 @@ test('bonus and penalties: added to the mark, which stays between 0 and the targ
   assert.match(html, /<td class="num adj">\+1<\/td>/);
 });
 
-import { markLevel } from '../src/lib/scoring.js';
+import { markLevel, classAverage } from '../src/lib/scoring.js';
 
 test('level grids: the colour follows the mark', () => {
   assert.deepEqual([0, 4, 8, 10, 12, 16, 20].map((v) => markLevel(v, 20)), ['1', '2', '3', '4', '4', '5', '6']);
   assert.equal(markLevel(null, 20), null);
+});
+
+test('off topic: the mark is 0 whatever the colours and the bonus, and counts in the average', () => {
+  const g = skills([{ name: 'A', rows: [0, 0] }]);
+  const r = { marks: { c0r0: '6', c0r1: '6' }, adjustments: [{ points: 2 }], offTopic: true };
+  const s = scoreStudent(g, r);
+  assert.equal(s.status, 'offtopic');
+  assert.equal(s.score, 0);
+  assert.equal(s.adjust, 0);
+  assert.equal(scoreStudent(g, { marks: {}, offTopic: true }).score, 0);
+  assert.equal(classAverage(g, { a: r, b: { marks: { c0r0: '6', c0r1: '6' } } }, ['a', 'b']), 10);
+  const e = newExam({ name: 'e', classId: 'c', grid: g });
+  e.results = { a: r };
+  const html = renderSummary({ exam: e, cls: { name: '5e A' }, students: [{ id: 'a', lastName: 'A', firstName: 'a' }], lang: 'fr' });
+  assert.match(html, /<strong>0<\/strong> <small class="muted">Hors sujet<\/small>/);
 });

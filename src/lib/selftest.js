@@ -102,6 +102,10 @@ function seed() {
     e3.grid.criteria.forEach((c) => (e3.results[first3.id].marks[c.id] = lv[1]));
   }
   e3.results[first3.id].partial = { [e3.grid.criteria[1].id]: true };
+  // Second student: off topic, 0 whatever the levels.
+  const second3 = sortStudents(c3.students)[1];
+  if (!e3.results[second3.id]) e3.results[second3.id] = emptyResult();
+  e3.results[second3.id].offTopic = true;
   e3.results[first3.id].adjustments = [
     { id: 'adj1', reason: 'Participation très active', points: 1 },
     { id: 'adj2', reason: 'Oubli du support', points: -0.5 },

@@ -39,14 +39,18 @@ const acqs = computed(() => {
 const average = computed(() => examAverage(props.exam, Object.keys(map.value)));
 
 // The card takes the colour of the student's average acquisition.
+function colorCode(id) {
+  return scores.value[id]?.status === 'offtopic' ? '1' : acqs.value[id]?.overall?.code;
+}
+
 function cardColor(id) {
-  const lvl = acqLevel(acqs.value[id]?.overall?.code);
+  const lvl = acqLevel(colorCode(id));
   return lvl ? { '--acq': lvl.color } : null;
 }
 
 // Roster dot: shape for the progress, colour of the average acquisition.
 function dotColor(id) {
-  const lvl = acqLevel(acqs.value[id]?.overall?.code);
+  const lvl = acqLevel(colorCode(id));
   return lvl ? { '--dot': lvl.color } : null;
 }
 
@@ -144,8 +148,16 @@ function clearMark() {
   if (rowId && resultOf(m.studentId)) delete resultOf(m.studentId).marks[rowId];
 }
 
+// Off topic: the mark is 0, whatever the colours.
+function toggleOffTopic(m) {
+  const r = ensureResult(m.studentId);
+  if (r.offTopic) delete r.offTopic;
+  else r.offTopic = true;
+}
+
 function toggleAbsent(m) {
   const r = ensureResult(m.studentId);
+  delete r.offTopic;
   const rows = rowsOf(m);
   const all = rows.length > 0 && rows.every((row) => r.marks[row.id] === 'A');
   for (const row of rows) {
@@ -349,7 +361,10 @@ function setRowComment(id, rowId, value) {
                 :value="resultOf(m.studentId)?.comment || ''"
                 @input="setComment(m.studentId, $event.target.value)"
               ></textarea>
-              <button class="btn small" @click.stop="toggleAbsent(m)">{{ t('grading.markAbsent') }}</button>
+              <div class="foot-btns">
+                <button class="btn small" @click.stop="toggleAbsent(m)">{{ t('grading.markAbsent') }}</button>
+                <button class="btn small" :class="{ toggled: resultOf(m.studentId)?.offTopic }" :aria-pressed="!!resultOf(m.studentId)?.offTopic" @click.stop="toggleOffTopic(m)">{{ t('grading.offTopic') }}</button>
+              </div>
             </footer>
             <Adjustments class="gsheet-adj" compact :result="resultOf(m.studentId)" :ensure="() => ensureResult(m.studentId)" :max="info.target" @click.stop />
           </article>
@@ -459,7 +474,8 @@ function setRowComment(id, rowId, value) {
 .status.has-acq.st-partial {
   background: linear-gradient(90deg, var(--dot) 50%, transparent 50%);
 }
-.status.has-acq.st-complete {
+.status.has-acq.st-complete,
+.status.has-acq.st-offtopic {
   background: var(--dot);
 }
 .roster-foot {
@@ -603,8 +619,14 @@ function setRowComment(id, rowId, value) {
   font-size: 13px;
   color: var(--ink-2);
 }
-.mini-score.st-complete {
+.mini-score.st-complete,
+.mini-score.st-offtopic {
   border-color: var(--ink);
+}
+.btn.toggled {
+  background: var(--ink-2);
+  border-color: var(--ink);
+  color: #fff;
 }
 .gs-tags {
   display: flex;
@@ -681,6 +703,15 @@ function setRowComment(id, rowId, value) {
 }
 .gsheet-foot textarea {
   font-size: 13.5px;
+}
+.foot-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+.foot-btns .btn {
+  justify-content: center;
 }
 .gsheet-adj {
   padding: 0 10px 10px;
