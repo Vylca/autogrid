@@ -96,6 +96,7 @@ export function newGrid({ name, type, presetId, categoryNames = null, roleNames 
     useRoles: false,
     roleGrids: false,
     roles: [],
+    themes: [],
     groupSize: 2,
     rowImportance: false,
     cellOverride: false,

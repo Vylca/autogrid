@@ -578,3 +578,32 @@ test('off topic: the mark is 0 whatever the colours and the bonus, and counts in
   const html = renderSummary({ exam: e, cls: { name: '5e A' }, students: [{ id: 'a', lastName: 'A', firstName: 'a' }], lang: 'fr' });
   assert.match(html, /<strong>0<\/strong> <small class="muted">Hors sujet<\/small>/);
 });
+
+import { classLevel, groupExams, examThemes, allThemes } from '../src/lib/organize.js';
+
+test('organize: assessments by class, level, grid and theme', () => {
+  const c3 = { id: 'c3', name: '3E', students: [] };
+  const c5 = { id: 'c5', name: '5e A', students: [] };
+  const cx = { id: 'cx', name: 'Atelier', students: [] };
+  assert.deepEqual([c3, c5, cx, { name: '301' }, { name: 'Atelier', level: '4e' }].map(classLevel), ['3e', '5e', '', '3e', '4e']);
+  const gA = newGrid({ name: 'Oral', type: 'competences', presetId: '5e' });
+  gA.themes = ['Heroes', 'Environment'];
+  const gB = newGrid({ name: 'Écrit', type: 'competences', presetId: '3e' });
+  const e1 = newExam({ name: 'e1', date: '2026-11-10', classId: 'c3', grid: gA });
+  const e2 = newExam({ name: 'e2', date: '2026-11-09', classId: 'c5', grid: gB });
+  const e3 = newExam({ name: 'e3', date: '2026-11-08', classId: 'cx', grid: gA });
+  const ctx = { classes: [c3, c5, cx], grids: [gA, gB], labels: { noLevel: 'Sans niveau', noTheme: 'Sans thème' } };
+  const list = [e1, e2, e3];
+  const view = (by) => groupExams(list, by, ctx).map((g) => `${g.label}:${g.exams.map((e) => e.name).join(',')}`);
+  assert.deepEqual(view('date'), [':e1,e2,e3']);
+  assert.deepEqual(view('class'), ['3E:e1', '5e A:e2', 'Atelier:e3']);
+  assert.deepEqual(view('level'), ['5e:e2', '3e:e1', 'Sans niveau:e3']);
+  assert.deepEqual(view('grid'), ['Écrit:e2', 'Oral:e1,e3']);
+  assert.deepEqual(view('theme'), ['Environment:e1,e3', 'Heroes:e1,e3', 'Sans thème:e2']);
+  // Themes follow the grid, even for assessments made before the theme was added.
+  gB.themes = ['Heroes'];
+  assert.deepEqual(view('theme'), ['Environment:e1,e3', 'Heroes:e1,e2,e3']);
+  // Grid deleted: the assessment keeps the themes of its copy.
+  assert.deepEqual(examThemes(e1, [gB]), ['Heroes', 'Environment']);
+  assert.deepEqual(allThemes([gA, gB]), ['Environment', 'Heroes']);
+});

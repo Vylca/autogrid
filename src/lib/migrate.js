@@ -219,6 +219,7 @@ export function migrateGrid(g, { legacy = false } = {}) {
   // Before 0.8, every role had its own sheet.
   if (g.roleGrids === undefined) g.roleGrids = !!(g.groupWork && g.useRoles);
   if (!Array.isArray(g.roles)) g.roles = [];
+  if (!Array.isArray(g.themes)) g.themes = [];
   return g;
 }
 

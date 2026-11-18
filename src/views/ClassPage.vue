@@ -6,10 +6,20 @@ import { newStudent, sortStudents } from '../lib/model.js';
 import { pickCsv } from '../lib/importCsv.js';
 import Icon from '../components/Icon.vue';
 import CsvImportDialog from '../components/CsvImportDialog.vue';
+import { LEVELS, classLevel } from '../lib/organize.js';
 
 const cls = computed(() => findClass(store.route.id));
 const students = computed(() => (cls.value ? sortStudents(cls.value.students) : []));
 const exams = computed(() => store.data.exams.filter((e) => e.classId === cls.value?.id));
+// Level found in the name, used when none is chosen.
+const autoLevel = computed(() => (cls.value ? classLevel({ name: cls.value.name }) : ''));
+const level = computed({
+  get: () => cls.value?.level || '',
+  set: (v) => {
+    if (v) cls.value.level = v;
+    else delete cls.value.level;
+  },
+});
 
 const draft = ref({ lastName: '', firstName: '' });
 function addStudent() {
@@ -48,7 +58,16 @@ async function importCsv() {
     <div class="page-head">
       <div class="grow">
         <input v-model="cls.name" class="input title-input" :placeholder="t('classes.namePlaceholder')" />
-        <p class="sub">{{ t('classes.nStudents', { n: cls.students.length }) }}</p>
+        <p class="sub">
+          {{ t('classes.nStudents', { n: cls.students.length }) }}
+          <label class="level-pick">
+            {{ t('classes.level') }}
+            <select v-model="level" class="input small">
+              <option value="">{{ autoLevel ? t('classes.levelAuto', { level: autoLevel }) : t('classes.levelNone') }}</option>
+              <option v-for="l in LEVELS" :key="l" :value="l">{{ l }}</option>
+            </select>
+          </label>
+        </p>
       </div>
       <div class="row-actions">
         <button class="btn" @click="importCsv"><Icon name="upload" /> {{ t('classes.importHere') }}</button>
@@ -93,6 +112,19 @@ async function importCsv() {
 <style scoped>
 .grow {
   flex: 1;
+}
+.level-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  font-weight: 700;
+}
+.level-pick .input {
+  width: auto;
+  height: 30px;
+  padding: 2px 8px;
+  font-size: 14px;
 }
 .students {
   width: 100%;

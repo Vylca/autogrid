@@ -169,6 +169,9 @@ function seed() {
   // Same grid for every role from the start.
   const sr = newGrid({ name: 'Débat à deux voix', type: 'competences', presetId: '3e', roleNames: ['Pour', 'Contre'], categoryNames: ['Langue', 'Interaction'] });
 
+  comp.themes = ['Heroes'];
+  pal.themes = ['Street art', 'Heroes'];
+  gw.themes = ['Monsters'];
   store.data.grids.push(comp, plain, pal, gw, duo, sr);
   store.data.exams.push(eg, ed, er);
   store.data.classes.push(c3, c5);
@@ -206,6 +209,11 @@ export async function runSelftest(info) {
   };
   navigate('exams');
   await shot('01-exams');
+  store.data.settings.examsGroupBy = 'theme';
+  await shot('01b-exams-by-theme');
+  store.data.settings.examsGroupBy = 'level';
+  await shot('01c-exams-by-level');
+  store.data.settings.examsGroupBy = 'date';
   navigate('exam', d.e5.id, { tab: 'grading' });
   await shot('02-grading-competences');
   // Keyboard grading on the last (ungraded) student.
@@ -327,6 +335,9 @@ export async function runSelftest(info) {
   store.data.settings.export.layout = 'perPage';
   navigate('classes');
   await shot('07-classes');
+  navigate('class', d.c3.id);
+  await shot('07b-class-level');
+  navigate('classes');
   navigate('grids');
   await shot('08-grids');
   document.querySelector('.page-head .btn.primary')?.click();

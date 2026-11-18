@@ -6,6 +6,7 @@ import { newExam } from '../lib/model.js';
 import { formatNumber } from '../lib/scoring.js';
 import { examScore, examAverage, roleMap } from '../lib/groups.js';
 import { scaleInfo } from '../lib/bareme.js';
+import { GROUP_BY, groupExams, examThemes } from '../lib/organize.js';
 import Icon from '../components/Icon.vue';
 import Modal from '../components/Modal.vue';
 
@@ -13,6 +14,20 @@ const exams = computed(() =>
   [...store.data.exams].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt.localeCompare(a.createdAt)),
 );
 const canCreate = computed(() => store.data.grids.length > 0 && store.data.classes.length > 0);
+
+// Organized by date (one list), class, level, grid or theme.
+const groupBy = computed({
+  get: () => (GROUP_BY.includes(store.data.settings.examsGroupBy) ? store.data.settings.examsGroupBy : 'date'),
+  set: (v) => (store.data.settings.examsGroupBy = v),
+});
+const groups = computed(() =>
+  groupExams(exams.value, groupBy.value, {
+    classes: store.data.classes,
+    grids: store.data.grids,
+    labels: { noClass: t('exams.noClass'), noLevel: t('exams.noLevel'), noTheme: t('exams.noTheme'), untitled: t('common.untitled') },
+  }),
+);
+const themesOf = (exam) => examThemes(exam, store.data.grids);
 
 function stats(exam) {
   const cls = findClass(exam.classId);
@@ -84,14 +99,28 @@ function create() {
       </div>
     </div>
 
-    <div v-else class="list">
-      <div v-for="exam in exams" :key="exam.id" class="list-item clickable" @click="navigate('exam', exam.id, { tab: 'grading' })">
+    <template v-else>
+    <div class="organize">
+      <span class="org-label">{{ t('exams.groupBy') }}</span>
+      <div class="segmented">
+        <button v-for="b in GROUP_BY" :key="b" :class="{ on: groupBy === b }" @click="groupBy = b">{{ t('exams.by.' + b) }}</button>
+      </div>
+    </div>
+    <section v-for="g in groups" :key="g.key" class="exam-group">
+      <h2 v-if="groupBy !== 'date'" class="group-head" :class="{ none: g.none }">
+        <Icon v-if="groupBy === 'theme' && !g.none" name="tag" :size="17" />
+        {{ g.label }}
+        <span class="hint">{{ t('exams.count', { n: g.exams.length }) }}</span>
+      </h2>
+    <div class="list">
+      <div v-for="exam in g.exams" :key="exam.id" class="list-item clickable" @click="navigate('exam', exam.id, { tab: 'grading' })">
         <div class="grow">
           <div class="title">{{ exam.name || t('common.untitled') }}</div>
           <div class="meta">
             <span>{{ stats(exam).cls?.name || t('exams.noClass') }}</span>
             <span>{{ formatDate(exam.date) }}</span>
             <span>{{ exam.grid.name || t('common.untitled') }}</span>
+            <span v-for="th in themesOf(exam)" :key="th" class="tag theme"><Icon name="tag" :size="12" /> {{ th }}</span>
           </div>
         </div>
         <div class="exam-progress">
@@ -107,6 +136,8 @@ function create() {
         <Icon name="right" class="chev" />
       </div>
     </div>
+    </section>
+    </template>
 
     <Modal v-if="showNew" :title="t('exams.new')" @close="showNew = false">
       <label class="field">
@@ -141,6 +172,43 @@ function create() {
 </template>
 
 <style scoped>
+.organize {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 18px;
+}
+.org-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.exam-group + .exam-group {
+  margin-top: 26px;
+}
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 19px;
+}
+.group-head .hint {
+  font-size: 14px;
+  font-weight: 600;
+}
+.group-head.none {
+  color: var(--ink-2);
+}
+.tag.theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
 .exam-progress {
   display: flex;
   flex-direction: column;

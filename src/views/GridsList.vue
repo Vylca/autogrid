@@ -146,6 +146,7 @@ async function runExport() {
             <span v-for="c in counts(g)" :key="c">{{ c }}</span>
             <span>/ {{ formatNumber(g.target, lang) }}</span>
             <span v-if="scaleInfo(g).warnings.length" class="tag warn">{{ t('grids.hasWarnings') }}</span>
+            <span v-for="th in g.themes || []" :key="th" class="tag theme"><Icon name="tag" :size="12" /> {{ th }}</span>
           </div>
           <div class="levels">
             <span v-for="(l, i) in levelsOf(g)" :key="i" class="tag level">{{ l }}</span>
@@ -304,6 +305,14 @@ async function runExport() {
 .draft {
   display: flex;
   gap: 8px;
+}
+.tag.theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 .tag.warn {
   border-color: #c77700;

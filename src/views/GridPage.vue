@@ -4,6 +4,7 @@ import { store, navigate, findGrid } from '../lib/store.js';
 import { t } from '../lib/i18n.js';
 import Icon from '../components/Icon.vue';
 import GridEditor from './GridEditor.vue';
+import ThemesInput from '../components/ThemesInput.vue';
 
 const grid = computed(() => findGrid(store.route.id));
 
@@ -26,6 +27,7 @@ watch(
       <div class="grow">
         <input v-model="grid.name" class="input title-input" :placeholder="t('common.untitled')" />
         <p class="sub">{{ grid.type === 'paliers' ? t('grids.typePaliersHint') : t('grids.typeCompetencesHint') }}</p>
+        <ThemesInput :grid="grid" />
       </div>
     </div>
     <GridEditor :grid="grid" />
